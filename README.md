@@ -1,10 +1,14 @@
-# taskwarrior.nvim
+# 📋 taskwarrior.nvim
 
-> **Status: Beta.** Usable day-to-day, but APIs and defaults may still change before 1.0. Always keep an external backup of your Taskwarrior data (`cp -r ~/.task ~/.task.bak`); review the confirmation dialog before saving — `:w` issues real `task modify` / `task done` / `task delete` commands. Bug reports and PRs welcome.
+> Edit your Taskwarrior database like a Neovim buffer. Every vim motion, macro, and visual-mode operation becomes a task management operation. Inspired by [oil.nvim](https://github.com/stevearc/oil.nvim).
 
-> **Migrating from `task.nvim`?** This plugin was renamed in v1.3.0. Update your lazy.nvim spec from `matthandzel/task.nvim` to `matthandzel/taskwarrior.nvim` and replace `require("task")` with `require("taskwarrior")` in your config. The `:Task*` commands and the `taskmd` filetype are unchanged. Saved views, registered projects, and apply backups migrate automatically the first time the plugin loads.
-
-Edit your Taskwarrior tasks as markdown. Every vim motion, macro, and visual-mode operation becomes a task management operation for free. Inspired by [oil.nvim](https://github.com/stevearc/oil.nvim).
+<p>
+<a href="https://github.com/MattHandzel/taskwarrior.nvim/releases"><img src="https://img.shields.io/github/v/release/MattHandzel/taskwarrior.nvim?style=for-the-badge&logo=starship&color=C9CBFF&logoColor=D9E0EE&labelColor=302D41" alt="Latest release"></a>
+<a href="https://github.com/MattHandzel/taskwarrior.nvim/commits/main"><img src="https://img.shields.io/github/last-commit/MattHandzel/taskwarrior.nvim?style=for-the-badge&logo=starship&color=8bd5ca&logoColor=D9E0EE&labelColor=302D41" alt="Last commit"></a>
+<a href="https://github.com/MattHandzel/taskwarrior.nvim/blob/main/LICENSE"><img src="https://img.shields.io/github/license/MattHandzel/taskwarrior.nvim?style=for-the-badge&logo=starship&color=ee999f&logoColor=D9E0EE&labelColor=302D41" alt="License"></a>
+<a href="https://github.com/MattHandzel/taskwarrior.nvim/stargazers"><img src="https://img.shields.io/github/stars/MattHandzel/taskwarrior.nvim?style=for-the-badge&logo=starship&color=c69ff5&logoColor=D9E0EE&labelColor=302D41" alt="Stars"></a>
+<a href="https://github.com/MattHandzel/taskwarrior.nvim/issues"><img src="https://img.shields.io/github/issues/MattHandzel/taskwarrior.nvim?style=for-the-badge&logo=bilibili&color=F5E0DC&logoColor=D9E0EE&labelColor=302D41" alt="Issues"></a>
+</p>
 
 ![hero demo: bulk-edit priorities with a substitute, save, watch them apply](demo/assets/hero.gif)
 
@@ -16,25 +20,72 @@ o                                       -- add new task inline
 :w                                      -- sync all changes at once
 ```
 
+## ✨ Features
+
+- 📝 **Edit as markdown** — `:Task` opens your Taskwarrior database as a buffer; every vim motion is a task operation
+- 🔁 **Bulk edits via `:s///`** — visual-select 20 tasks, substitute the project, `:w` applies them all in one round-trip
+- 🛡️ **Conflict-aware save** — diffs your edits against fresh Taskwarrior state on every `:w`; external `task add` / `task modify` between render and save is preserved, not clobbered
+- ⚡ **Quick capture from any buffer** — `<leader>ta` floats a one-line capture in any buffer
+- 🔍 **Live query blocks in arbitrary markdown** — `<!-- taskmd query: due.before:eow -->` renders matching tasks below it on save; embed live task lists in your project's `notes.md`
+- 📊 **Built-in visualizations** — burndown, dependency tree, per-project summary, calendar, tag frequency, Mermaid graph
+- 🎯 **Guided review + GTD inbox** — `:TaskReview` walks pending tasks in urgency order; `:TaskInbox` triages new captures
+- 🤖 **Delegate to Claude** — `:TaskDelegate` opens a popup form and runs the task as a Claude prompt in a bottom split
+- 🚀 **Pure-Lua hot path, zero runtime deps** — optional Python CLI in `bin/taskmd` for scripting and pipelines
+- 🧪 **480+ tests** — Python CLI, Lua backend, end-to-end against a real `task` binary including external-write conflict scenarios
+
+## ⚡ Requirements
+
+- Neovim ≥ 0.9
+- Taskwarrior ≥ 2.6 (compatible with 3.x)
+- Python ≥ 3.8 — *optional*, only for the `bin/taskmd` CLI and live diff-preview virt-text. The default render/save path is pure Lua.
+
+## 📦 Installation
+
+```lua
+-- lazy.nvim
+{
+  "matthandzel/taskwarrior.nvim",
+  config = function()
+    require("taskwarrior").setup()
+  end,
+}
+```
+
+## 🚀 Quick start
+
+```
+:Task                          -- view all pending tasks
+:Task project:career +ais      -- filter
+:Task due.before:eow           -- tasks due this week
+```
+
+Edit any line. `:w` to sync. That's it.
+
+## Compared to other Neovim Taskwarrior plugins
+
+| Plugin | Approach | Where this plugin differs |
+|---|---|---|
+| [m_taskwarrior_d.nvim](https://github.com/huantrinh1802/m_taskwarrior_d.nvim) | Sync `- [ ]` checkboxes embedded in your existing markdown notes | This plugin gives you a **dedicated buffer** for the database itself; pure-Lua render path (no per-task shell spawn freeze); conflict-aware diff |
+| [neowarrior.nvim](https://github.com/duckdm/neowarrior.nvim) | Sidebar TUI with tree views, named reports, per-cwd configs | This plugin treats the database as a **buffer you edit with vim motions**, not a TUI you navigate with custom keys; picker-agnostic (works without Telescope) |
+| [ribelo/taskwarrior.nvim](https://github.com/ribelo/taskwarrior.nvim) | Telescope picker + per-project `.taskwarrior.json` auto time-tracking | This plugin is markdown-buffer first; Telescope is an optional layer, not the primary UI; actively maintained |
+| [TaskWiki](https://github.com/tools-life/taskwiki) | Vimwiki extension with task-syntax checkboxes | This plugin is Neovim-native (no vimwiki dep), supports Taskwarrior 3.x, and ships an automated test suite |
+
 ---
 
-## Browse, filter, group
+<details>
+<summary><strong>📸 Showcase</strong> — visualizations, quick capture, guided review, delegation, diff preview</summary>
+
+### Browse, filter, group
 
 ![filter and group demo](demo/assets/filter-group.gif)
 
 `:TaskFilter project.startswith:work` narrows to a project. `:TaskGroup project` splits the buffer into `## sections`. `:TaskSort due+` re-sorts within groups. None of this touches your Taskwarrior database — only the view.
 
-## Quick-capture from any buffer
+### Quick-capture from any buffer
 
 ![quick capture demo](demo/assets/quick-capture.gif)
 
 `<leader>ta` pops a floating window in any buffer. Type `Fix auth bug project:work priority:H`, press Enter, go back to what you were doing. The task is in Taskwarrior before your hand leaves the keyboard.
-
----
-
-## Visualize
-
-Five built-in views read from Taskwarrior — no external charting tools.
 
 ### `:TaskBurndown` — completion trend over time
 
@@ -66,10 +117,6 @@ Pending tasks grouped by due date, ordered chronologically. Today is marked `←
 
 Every tag on every pending task with a count and frequency bar. Quick way to see which tags you're actually using vs. which were one-offs.
 
----
-
-## Power user
-
 ### `:TaskReview` — guided urgency walk
 
 ![guided review walkthrough](demo/assets/review.gif)
@@ -88,23 +135,26 @@ Opens a popup form (extra context, flags, model, system-prompt-file) and runs Cl
 
 Toggle with `:TaskDiffPreview on`. As you edit, virtual-text labels appear at end-of-line: `+ ADD`, `~ MODIFY`, `✓ DONE`, `✗ DELETE`, `▶ START`, `◼ STOP`. 400ms debounce keeps it from running on every keystroke. Same data the `:w` confirmation dialog uses — just shown live.
 
-### `:TaskStart` / `:TaskStop`
-
-Mark the task on the cursor as actively in-progress (`task UUID start`) or pause it (`task UUID stop`). Active tasks show `[>]` in the buffer.
-
-### `:TaskSave` / `:TaskLoad` — saved views
-
-`:TaskSave morning` saves the current filter+sort+group as a named view. `:TaskLoad morning` reopens it. Persisted to `stdpath("data")/taskwarrior.nvim/saved-views.json`. Tab-completes saved names.
-
-### `:TaskUndo`
-
-Reverses the last save's actions. Reads the action log from the buffer's last apply and emits the inverse `task modify` / `task add` / `task start` calls. Best-effort — anything Taskwarrior cannot reverse (e.g. `task delete` on a UUID) is reported as an error.
+</details>
 
 ---
+
+## Conflict-aware save path
+
+The buffer is a snapshot of `task export` at the moment you opened it. When you `:w`, the plugin re-exports the current Taskwarrior state and diffs your edits **against current state**, not against what you saw. This means:
+
+- A task someone else added between render and save is preserved — your edits don't silently mark it done.
+- A field added externally (`task X modify foo:bar` from another window or a sync) survives your save.
+- A task externally completed isn't resurrected as pending just because its checkbox is still rendered in your buffer.
+- A genuine conflict (you and an external writer both changed the same field) surfaces in the confirmation dialog instead of being silently overwritten.
+- `:w!` skips the conflict check — destructive escape hatch when you know what you're doing.
+
+The full external-write matrix is verified in `tests/e2e/spec/external_changes_spec.lua` against a real `task` binary on every commit.
 
 ## Auto-project filter from cwd
 
 Register the directories you work in:
+
 ```
 :TaskProjectAdd career      -- maps cwd to project:career
 :TaskProjectList            -- show all mappings
@@ -113,51 +163,15 @@ Register the directories you work in:
 
 After that, `:Task` (with no filter) auto-applies `project:<name>` whenever you launch it from inside a registered directory. Persisted to `stdpath("data")/taskwarrior_nvim_projects.json`.
 
----
-
 ## Ecosystem
 
-These are bundled but require their own host plugins to be installed.
+These are bundled but require their own host plugins.
 
 | Module | Path | Activate |
 |---|---|---|
 | Telescope picker | `lua/telescope/_extensions/task.lua` | `require("telescope").load_extension("task")` then `:Telescope task tasks` |
 | nvim-cmp source | `lua/taskwarrior/cmp.lua` | `require("cmp").register_source("task", require("taskwarrior.cmp").new())` then add `{ name = "task" }` to your cmp sources |
 | Statusline component | `lua/taskwarrior/statusline.lua` | `require("taskwarrior.statusline").render()` — returns a string with the active task / overdue count / next due |
-
-Screenshots for these are coming once a richer demo init that loads telescope/cmp/lualine lands.
-
----
-
-## Requirements
-
-- Neovim ≥ 0.9
-- Taskwarrior ≥ 2.6 (compatible with 3.x)
-- Python ≥ 3.8 — only required for the optional `bin/taskmd` CLI and the live diff-preview virtual text. The default in-editor render/save path is pure Lua.
-
-## Installation
-
-```lua
--- lazy.nvim
-{
-  "matthandzel/taskwarrior.nvim",
-  config = function()
-    require("taskwarrior").setup()
-  end,
-}
-```
-
-## Quick Start
-
-```
-:Task                          -- view all pending tasks
-:Task project:career +ais      -- filter tasks
-:Task due.before:eow           -- tasks due this week
-```
-
-Edit any line. `:w` to sync. That's it.
-
----
 
 ## All commands
 
@@ -250,7 +264,7 @@ require("taskwarrior").setup({
 
 ### Custom urgency with UDAs
 
-If you have custom UDA fields (e.g. `utility`, `effort`) and want them to affect task sort order, use `urgency_coefficients`. For each field, the urgency adjustment is **value x coefficient** — proportional to the actual numeric value, not just whether the field is present:
+If you have custom UDA fields (e.g. `utility`, `effort`) and want them to affect task sort order, use `urgency_coefficients`. For each field, the urgency adjustment is **value × coefficient** — proportional to the actual numeric value, not just whether the field is present:
 
 ```lua
 require("taskwarrior").setup({
@@ -278,12 +292,12 @@ require("taskwarrior").setup({
 
 ## How it works
 
-1. `:Task` runs the Lua backend (`lua/taskwarrior/taskmd.lua`) which calls `task export`, parses the JSON, and renders markdown checkboxes with concealed `<!-- uuid:ab05fb51 -->` markers
-2. You edit the buffer with standard vim operations
-3. On `:w`, the plugin diffs your edits against fresh Taskwarrior state
-4. A confirmation dialog shows what will change (`:TaskDiffPreview on` shows it live as you type)
-5. Changes are applied via `task modify` / `task done` / `task add` / `task delete`
-6. The buffer re-renders from Taskwarrior truth
+1. `:Task` runs the Lua backend (`lua/taskwarrior/taskmd.lua`) which calls `task export`, parses the JSON, and renders markdown checkboxes with concealed `<!-- uuid:ab05fb51 -->` markers.
+2. You edit the buffer with standard vim operations.
+3. On `:w`, the plugin diffs your edits against fresh Taskwarrior state.
+4. A confirmation dialog shows what will change (`:TaskDiffPreview on` shows it live as you type).
+5. Changes are applied via `task modify` / `task done` / `task add` / `task delete`.
+6. The buffer re-renders from Taskwarrior truth.
 
 UUID markers are invisible thanks to `conceallevel=3` + `concealcursor`, and survive any vim operation that preserves the line.
 
@@ -307,26 +321,23 @@ Useful for: piping rendered tasks through `grep`/`fzf`, automating bulk operatio
 
 ## Data safety
 
-`:w` issues real `task modify` / `task done` / `task add` / `task delete`
-commands against your Taskwarrior database. There is no staging.
+> **Status: Beta.** Usable day-to-day, but APIs and defaults may still change before 1.0. Always keep an external backup of your Taskwarrior data (`cp -r ~/.task ~/.task.bak`); review the confirmation dialog before saving — `:w` issues real `task modify` / `task done` / `task delete` commands.
 
-By default (`auto_backup = true`), the plugin copies your Taskwarrior data
-directory to `stdpath("data")/taskwarrior.nvim/backups/<timestamp>/` immediately
-before any apply. The ten newest backups are kept; older ones are pruned.
-Disable with `auto_backup = false` in `setup()`.
+`:w` issues real `task modify` / `task done` / `task add` / `task delete` commands against your Taskwarrior database. There is no staging.
 
-The CLI also refuses to `apply` a file with a missing or malformed header
-unless you pass `--force`, preventing the "hand-wrote a file, got every
-pending task marked done" failure mode.
+By default (`auto_backup = true`), the plugin copies your Taskwarrior data directory to `stdpath("data")/taskwarrior.nvim/backups/<timestamp>/` immediately before any apply. The ten newest backups are kept; older ones are pruned. Disable with `auto_backup = false` in `setup()`.
 
-**You should still keep an external backup of `~/.task`.** The plugin's
-backups are a convenience, not a replacement.
+The CLI also refuses to `apply` a file with a missing or malformed header unless you pass `--force`, preventing the "hand-wrote a file, got every pending task marked done" failure mode.
+
+**You should still keep an external backup of `~/.task`.** The plugin's backups are a convenience, not a replacement.
+
+## Migrating from `task.nvim`?
+
+This plugin was renamed in v1.3.0. Update your lazy.nvim spec from `matthandzel/task.nvim` to `matthandzel/taskwarrior.nvim` and replace `require("task")` with `require("taskwarrior")` in your config. The `:Task*` commands and the `taskmd` filetype are unchanged. Saved views, registered projects, and apply backups migrate automatically the first time the plugin loads.
 
 ## Help
 
-Run `:help taskwarrior.nvim` inside Neovim for the full reference, or read
-[`doc/taskwarrior.txt`](doc/taskwarrior.txt). `:checkhealth taskwarrior`
-verifies your setup.
+Run `:help taskwarrior.nvim` inside Neovim for the full reference, or read [`doc/taskwarrior.txt`](doc/taskwarrior.txt). `:checkhealth taskwarrior` verifies your setup.
 
 ## Contributing
 
@@ -334,11 +345,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Quick version:
 
 ```bash
 python3 -m pytest tests/ -v        # 358 tests, stdlib-only CLI
+./tests/lua/bootstrap.sh           # 121 Lua assertions via plenary
+./tests/e2e/run.sh                 # end-to-end against real `task` binary
 ```
 
-Every bug fix needs a regression test. The Python test suite covers the
-`bin/taskmd` CLI and the Lua backend's parser/serializer/diff contract is
-tested via the CLI-compatibility boundary.
+Every bug fix needs a regression test. The Python suite covers the `bin/taskmd` CLI; the Lua suite covers the in-editor backend; the e2e suite drives every feature against a real `task` CLI and validates downstream output.
 
 ## Changelog
 

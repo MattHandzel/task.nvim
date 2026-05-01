@@ -1,0 +1,32 @@
+name: luarocks-release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: LuaRocks Upload
+        uses: nvim-neorocks/luarocks-tag-release@v7
+        env:
+          LUAROCKS_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
+        with:
+          summary: "Edit your Taskwarrior database like a Neovim buffer."
+          detailed_description: |
+            taskwarrior.nvim is an oil.nvim-inspired editor for Taskwarrior.
+            Every vim motion, macro, and visual-mode operation becomes a task
+            management operation for free.
+          labels: |
+            neovim
+            taskwarrior
+            note-taking
+            productivity
+          dependencies: |
+            neovim >= 0.9.0
