@@ -75,6 +75,31 @@ Bar per feature category:
 - **Background behaviour** (granulation auto-stop): drive the real
   timer by advancing `vim.loop.now()`-equivalent or by calling the
   internal check directly; verify `task +ACTIVE export` is empty.
+- **Degraded environment — missing or broken hard dependencies**: the
+  plugin shells out to `task` (always), `python3`/`bin/taskmd` (live
+  diff preview, optional CLI features), `mmdc` (`:TaskGraph`), and
+  `claude` (`:TaskDelegate`). Tests must cover the case where each
+  binary is absent. **CI installs Taskwarrior at the top of every
+  job, and the e2e harness requires `task` for its own seed step**,
+  so the only way to exercise the missing-binary path is to monkey-
+  patch `vim.fn.executable` in a Lua spec. The plugin must:
+  A. emit a clear, actionable `vim.notify(..., WARN)` at startup if
+     `task` is missing — not a Lua trace from `vim.fn.system`;
+  B. short-circuit `run()` in `taskmd.lua` (and any equivalent
+     wrapper) so subsequent calls return `"", 127` without touching
+     `vim.fn.system`;
+  C. throttle the missing-binary notify to at most one per session
+     (no per-call spam);
+  D. keep `:checkhealth taskwarrior` as the canonical post-install
+     verification path for users who skipped reading the README.
+  See `tests/lua/spec/degraded_env_spec.lua`. Issue #2 was a
+  manifestation of this gap — `task` not on PATH triggered
+  `E475: Invalid value for argument cmd: 'task' is not executable`
+  with no friendly fallback. Any new external-binary dep added in
+  the future (mmdc, claude, future Rust helpers) **must** ship with
+  a parallel degraded-env spec; otherwise the same class of bug
+  reappears the moment a user installs the plugin without that dep.
+
 - **Concurrent state — external Taskwarrior changes**: the plugin is
   not the only writer. CLI `task add`, mobile sync, another editor, or
   a background hook can mutate Taskwarrior between the time we render

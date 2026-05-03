@@ -169,9 +169,33 @@ M.DEFAULT_URGENCY_VALUE_MAPPERS.effort = M.effort_to_minutes
 -- Taskwarrior adapter (subprocess via vim.fn.system)
 -- ---------------------------------------------------------------------------
 
+-- Layer B — runtime defense for the missing-binary case. Layer A
+-- (startup-time check in plugin/taskwarrior.lua) catches users who never
+-- had Taskwarrior installed; this catches users who had it at startup
+-- but lost it mid-session (uninstall, PATH change, container teardown).
+-- Without this guard, vim.fn.system({"task",...}) raises E475 from
+-- inside vim.schedule and surfaces to the user as a Lua trace.
+--
+-- Cached after the first miss to avoid spamming the notify on every
+-- subsequent call. Reset implicitly on plugin reload (the module is
+-- re-required, the upvalues are re-initialized).
+local _task_missing_notified = false
 local function run(argv)
   if not vim or not vim.fn then
     error("taskmd.lua requires the vim global (must run inside neovim)")
+  end
+  if vim.fn.executable("task") ~= 1 then
+    if not _task_missing_notified then
+      _task_missing_notified = true
+      vim.notify(
+        "taskwarrior.nvim: `task` not found on PATH. "
+          .. "Install Taskwarrior (https://taskwarrior.org/install/) and run "
+          .. ":checkhealth taskwarrior to verify. "
+          .. "Plugin commands will no-op until the binary is available.",
+        vim.log.levels.WARN
+      )
+    end
+    return "", 127
   end
   local out = vim.fn.system(argv)
   return out, vim.v.shell_error

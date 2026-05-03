@@ -11,6 +11,23 @@ if vim.fn.has("nvim-0.9") ~= 1 then
   return
 end
 
+-- Layer A — startup-time dependency check. Without this, the first call
+-- to vim.fn.system({"task",...}) raises `E475: Invalid value for argument
+-- cmd: 'task' is not executable` from inside vim.schedule, which the user
+-- sees as an unintelligible Lua stack trace (cf. issue #2). Fail loud and
+-- friendly instead. Plugin commands stay registered; they no-op safely
+-- via Layer B in lua/taskwarrior/taskmd.lua run().
+if vim.fn.executable("task") ~= 1 then
+  vim.notify(
+    "taskwarrior.nvim: `task` not found on PATH.\n"
+      .. "Install Taskwarrior from https://taskwarrior.org/install/ and ensure "
+      .. "the `task` binary is on PATH (or set vim.env.PATH from your nvim config "
+      .. "if it lives somewhere unusual).\n"
+      .. "Run :checkhealth taskwarrior after installing to verify.",
+    vim.log.levels.WARN
+  )
+end
+
 local function lazy(method)
   return function(cmd_opts)
     local ok, task = pcall(require, "taskwarrior")
