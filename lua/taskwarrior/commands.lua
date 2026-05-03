@@ -241,6 +241,22 @@ function M.setup(main, complete_filter)
     complete = function(arg_lead) return complete_filter(arg_lead) end,
   })
 
+  -- Interactive tutor (sandboxed; never touches real ~/.task)
+  vim.api.nvim_create_user_command("TaskTutor", function(o)
+    local tutor = require("taskwarrior.tutor")
+    if o.args == "reset" then
+      tutor.reset()
+      vim.notify("taskwarrior.tutor: cleaned up active session and any orphan temp dirs",
+        vim.log.levels.INFO)
+    else
+      tutor.start()
+    end
+  end, {
+    nargs = "?",
+    desc = "Open the interactive tutorial (subcommand: reset)",
+    complete = function() return { "reset" } end,
+  })
+
   -- Nested checkbox → dependency helpers
   vim.api.nvim_create_user_command("TaskLinkChildren", function()
     require("taskwarrior.nested").link_children()
