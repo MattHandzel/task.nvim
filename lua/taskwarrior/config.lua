@@ -16,7 +16,14 @@ M.defaults = {
 	project_add_key = "<leader>tpa", -- global keybind to register cwd as a project (nil to disable)
 	filters = {}, -- named filter presets: { { key = "<key>", filter = "filter_str", label = "label" }, ... }
 	projects = {}, -- directory-to-project mapping: { ["/path/to/dir"] = "project_name", ... }
-	icons = true, -- use nerd font icons for checkboxes and group headers
+	-- Icon mode. Auto-detects nerd-font availability via `vim.g.have_nerd_font`
+	-- and emits ASCII (`[ ]`, `[x]`, …) when NF is unavailable. Explicit values:
+	--   true / nil / "auto" — auto-detect (default; safe across terminals)
+	--   false               — force ASCII (accessibility path)
+	--   "force-nf"          — force nerd-font glyphs even without NF detection
+	--   table               — partial override map; unspecified slots auto-detect
+	-- See `:help taskwarrior-icons` for the full slot list.
+	icons = true,
 	border_style = "rounded", -- border style for floating windows: "rounded", "single", "double", "none"
 	capture_width = nil, -- quick-capture window width (nil = auto: min(80, 60% of editor))
 	capture_height = 3, -- quick-capture window height (lines visible; task is still 1 line)

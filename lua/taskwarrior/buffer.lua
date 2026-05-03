@@ -31,17 +31,32 @@ end
 -- for placing it (currently as inline virt_text alongside a conceal extmark
 -- that hides the literal "- [ ]" prefix).
 --
--- Suppressed when `icons = false` (forced ASCII) or when `icons = "auto"`
--- and `vim.g.have_nerd_font` is unset.
+-- Suppressed when:
+--   `icons = false`                         (forced ASCII, accessibility path)
+--   `icons` ∈ {nil, true, "auto"} and no `vim.g.have_nerd_font`
+--                                           (auto-detect: ASCII fallback equals
+--                                            the buffer source `- [ ]`, so an
+--                                            overlay would just conceal-then-
+--                                            re-paint the same characters and
+--                                            tofu in non-NF terminals — the
+--                                            issue users hit before this fix)
+-- Painted when:
+--   `icons = "force-nf"`                    (escape hatch — always emit NF)
+--   `icons` is a table with this slot       (explicit user override wins)
+--   `icons` ∈ {nil, true, "auto"} and `vim.g.have_nerd_font` is truthy
 local function checkbox_overlay_text(slot)
   if not slot then return nil end
   local config = require("taskwarrior.config")
   local user = config.options.icons
   if user == false then return nil end
-  if user == "auto" and not vim.g.have_nerd_font then return nil end
+
+  local has_user_override = type(user) == "table" and type(user[slot]) == "string"
+  if not has_user_override and user ~= "force-nf" and not vim.g.have_nerd_font then
+    return nil
+  end
 
   local glyph
-  if type(user) == "table" and type(user[slot]) == "string" then
+  if has_user_override then
     glyph = user[slot]
   else
     glyph = require("taskwarrior.icons").get(slot)

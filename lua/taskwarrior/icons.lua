@@ -67,12 +67,18 @@ M.slots = {
 -- and nerd-font availability.
 --
 -- Accepted forms for `config.options.icons`:
---   true  | nil  — use nerd-font glyphs (default; matches the
---                   "use nerd font icons" wording on the config option)
---   false        — force ASCII (accessibility path)
---   "auto"       — detect: NF if vim.g.have_nerd_font is truthy, else ASCII
---   table        — partial override; unspecified slots fall through to
---                   the same default-NF behavior as `true`
+--   nil   | true  | "auto"
+--                 — auto-detect: emit nerd-font glyph IF vim.g.have_nerd_font
+--                   is truthy, ELSE the ASCII fallback (e.g. "[ ]" instead
+--                   of the U+F0931 nf-fa-square_o codepoint that renders as
+--                   tofu in non-nerd-font terminals). This is the default
+--                   because shipping U+F* codepoints by default produces a
+--                   broken first-touch UX for the majority of users.
+--   false        — force ASCII unconditionally (accessibility path)
+--   "force-nf"   — force nerd-font glyphs even without vim.g.have_nerd_font
+--                   (escape hatch for users whose nf detection is broken)
+--   table        — partial override; unspecified slots fall through to the
+--                   auto-detect default
 function M.get(slot_name)
   local config = require("taskwarrior.config")
   local user = config.options.icons
@@ -91,15 +97,15 @@ function M.get(slot_name)
   local slot = M.slots[slot_name]
   if not slot then return "" end
 
-  -- Detection mode: only when explicitly requested via `icons = "auto"`.
-  if user == "auto" then
-    if vim.g.have_nerd_font then return slot.nf end
-    return slot.ascii
+  -- Force nerd-font (escape hatch)
+  if user == "force-nf" then
+    return slot.nf
   end
 
-  -- Default (`true`, `nil`, or table-without-this-slot): emit the NF
-  -- glyph. Users on terminals without a nerd-font set `icons = false`.
-  return slot.nf
+  -- Default path (nil, true, "auto", or table-without-this-slot):
+  -- auto-detect via vim.g.have_nerd_font.
+  if vim.g.have_nerd_font then return slot.nf end
+  return slot.ascii
 end
 
 -- Return the full {name → glyph} resolved map, for display in :TaskHelp

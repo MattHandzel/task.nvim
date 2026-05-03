@@ -30,12 +30,31 @@ describe("checkbox_overlay_text", function()
     assert.is_nil(buffer._checkbox_overlay_text("checkbox_pending"))
   end)
 
-  it("returns NF glyph when icons = true regardless of vim.g.have_nerd_font", function()
+  it("returns nil when icons = true (auto) and no nerd font — keeps literal `- [ ]` visible", function()
+    -- Regression for the "virtual square instead of `- [ ]`" bug: previously
+    -- `icons = true` (the default) painted the U+F0931 nf-fa-square_o glyph
+    -- via inline virt_text + conceal, which renders as tofu in non-NF
+    -- terminals. The auto-detect default now suppresses the overlay so the
+    -- buffer-faithful `- [ ]` remains visible.
     config.options.icons = true
     vim.g.have_nerd_font = nil
+    assert.is_nil(buffer._checkbox_overlay_text("checkbox_pending"))
+  end)
+
+  it("returns NF glyph when icons = true (auto) AND vim.g.have_nerd_font is set", function()
+    config.options.icons = true
+    vim.g.have_nerd_font = true
     local out = buffer._checkbox_overlay_text("checkbox_pending")
     assert.is_string(out)
     assert.are.equal(out, icons.get("checkbox_pending"))
+  end)
+
+  it("returns NF glyph when icons = 'force-nf' (escape hatch) even without have_nerd_font", function()
+    config.options.icons = "force-nf"
+    vim.g.have_nerd_font = nil
+    local out = buffer._checkbox_overlay_text("checkbox_pending")
+    assert.is_string(out)
+    assert.is_truthy(#out > 0)
   end)
 
   it("returns NF glyph when icons = 'auto' AND nerd font is available", function()
@@ -60,9 +79,9 @@ describe("checkbox_overlay_text", function()
     assert.is_nil(buffer._checkbox_overlay_text(nil))
   end)
 
-  it("returns a non-empty glyph for every checkbox slot", function()
+  it("returns a non-empty glyph for every checkbox slot when nerd font is available", function()
     config.options.icons = true
-    vim.g.have_nerd_font = nil
+    vim.g.have_nerd_font = true
     for _, slot in ipairs({ "checkbox_pending", "checkbox_started",
                             "checkbox_done", "checkbox_blocked" }) do
       local out = buffer._checkbox_overlay_text(slot)
@@ -87,6 +106,7 @@ describe("paint_checkbox_line", function()
 
   it("places conceal + inline virt_text extmarks on a pending task line", function()
     config.options.icons = true
+    vim.g.have_nerd_font = true   -- auto-detect mode requires NF to overlay
     local bufnr = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "- [ ] hello" })
 
@@ -120,9 +140,23 @@ describe("paint_checkbox_line", function()
 
   it("returns false (no extmarks) on non-task lines", function()
     config.options.icons = true
+    vim.g.have_nerd_font = true   -- isolate the "non-task line" branch from the overlay-suppression branch
     local bufnr = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "## Section header" })
     assert.is_false(buffer._paint_checkbox_line(bufnr, 0, "## Section header"))
+    local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {})
+    assert.are.equal(0, #marks)
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+  end)
+
+  it("returns false (no extmarks) when icons=true but no nerd font — auto-detect suppression", function()
+    -- The "virtual square" regression: previously this combination painted
+    -- a tofu glyph; now it cleanly suppresses, leaving the literal `- [ ]`.
+    config.options.icons = true
+    vim.g.have_nerd_font = nil
+    local bufnr = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "- [ ] task" })
+    assert.is_false(buffer._paint_checkbox_line(bufnr, 0, "- [ ] task"))
     local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {})
     assert.are.equal(0, #marks)
     vim.api.nvim_buf_delete(bufnr, { force = true })

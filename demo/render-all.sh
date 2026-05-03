@@ -100,6 +100,7 @@ declare -A MAX_SIZES=(
   ["calendar.png"]=700
   ["tags.png"]=150
   ["hero.gif"]=7000
+  ["hero-v14.gif"]=7000
   ["filter-group.gif"]=2000
   ["quick-capture.gif"]=2500
   ["review.gif"]=2000
@@ -110,8 +111,13 @@ declare -A MAX_SIZES=(
 echo
 echo "=== Step 3: Size-based sanity checks ==="
 
+# nullglob: silently produce an empty list when no matching files exist,
+# instead of trying to iterate over the literal pattern. Replaces the
+# `2>/dev/null` that used to live on the `for` line, which is invalid
+# bash (redirects don't apply to `for ... in` glob expansion).
+shopt -s nullglob
 size_warnings=0
-for asset in demo/assets/*.{png,gif} 2>/dev/null; do
+for asset in demo/assets/*.png demo/assets/*.gif; do
   [ -f "$asset" ] || continue
   name=$(basename "$asset")
   size_kb=$(( $(stat -c%s "$asset" 2>/dev/null || stat -f%z "$asset" 2>/dev/null) / 1024 ))
