@@ -30,6 +30,7 @@ o                                       -- add new task inline
 - 📊 **Built-in visualizations** — burndown, dependency tree, per-project summary, calendar, tag frequency, Mermaid graph
 - 🎯 **Guided review + GTD inbox** — `:TaskReview` walks pending tasks in urgency order; `:TaskInbox` triages new captures
 - 🤖 **Delegate to Claude** — `:TaskDelegate` opens a popup form and runs the task as a Claude prompt in a bottom split
+- 🎓 **Interactive tutor** — `:TaskTutor` teaches Taskwarrior + the plugin from scratch in 20 minutes, fully sandboxed (your real `~/.task` is never touched)
 - 🚀 **Pure-Lua hot path, zero runtime deps** — optional Python CLI in `bin/taskmd` for scripting and pipelines
 - 🧪 **480+ tests** — Python CLI, Lua backend, end-to-end against a real `task` binary including external-write conflict scenarios
 
@@ -61,14 +62,34 @@ o                                       -- add new task inline
 
 Edit any line. `:w` to sync. That's it.
 
+## 🎓 New to Taskwarrior? Run the tutor
+
+```
+:TaskTutor
+```
+
+A 5-lesson, ~20-minute interactive walkthrough that teaches the Taskwarrior CLI from scratch and graduates you into the plugin's buffer-as-database UX. Fully sandboxed — every command runs against a throwaway DB in `/tmp`, your real `~/.task` and `~/.taskrc` are never touched. The tutor cleans up after itself when you finish, quit (`q`), or close the buffer.
+
+Prefer video? Andrew Dumont's [Taskwarrior intro on YouTube](https://www.youtube.com/watch?v=5wmcn9-IQE4) is a great 8-minute primer; come back to `:TaskTutor` after.
+
+If `task` is missing on your system, the tutor's first lesson points you at the right install command for your package manager. Or run `:checkhealth taskwarrior` to verify your environment.
+
+### Sandbox guarantees
+
+The tutor runs every `task` command with `rc.data.location=<temp>` and `rc.hooks=off`, and the `[Tutor shell]` terminal split spawns `bash --norc --noprofile` with `TASKDATA`/`TASKRC` env scoped to the temp dir. The structural invariants are tested in [`tests/lua/spec/tutor_isolation_spec.lua`](tests/lua/spec/tutor_isolation_spec.lua) and [`tests/lua/spec/tutor_lessons_spec.lua`](tests/lua/spec/tutor_lessons_spec.lua) — together they make it impossible for a future code change to silently bypass the sandbox.
+
+`:TaskTutor reset` ends an active session and cleans up any orphan temp dirs left by a prior crash.
+
 ## Compared to other Neovim Taskwarrior plugins
 
 | Plugin | Approach | Where this plugin differs |
 |---|---|---|
-| [m_taskwarrior_d.nvim](https://github.com/huantrinh1802/m_taskwarrior_d.nvim) | Sync `- [ ]` checkboxes embedded in your existing markdown notes | This plugin gives you a **dedicated buffer** for the database itself; pure-Lua render path (no per-task shell spawn freeze); conflict-aware diff |
-| [neowarrior.nvim](https://github.com/duckdm/neowarrior.nvim) | Sidebar TUI with tree views, named reports, per-cwd configs | This plugin treats the database as a **buffer you edit with vim motions**, not a TUI you navigate with custom keys; picker-agnostic (works without Telescope) |
-| [ribelo/taskwarrior.nvim](https://github.com/ribelo/taskwarrior.nvim) | Telescope picker + per-project `.taskwarrior.json` auto time-tracking | This plugin is markdown-buffer first; Telescope is an optional layer, not the primary UI; actively maintained |
-| [TaskWiki](https://github.com/tools-life/taskwiki) | Vimwiki extension with task-syntax checkboxes | This plugin is Neovim-native (no vimwiki dep), supports Taskwarrior 3.x, and ships an automated test suite |
+| [m_taskwarrior_d.nvim](https://github.com/huantrinh1802/m_taskwarrior_d.nvim) | Sync `- [ ]` checkboxes embedded in your existing markdown notes | This plugin gives you a **dedicated buffer** for the database itself; pure-Lua render path (no per-task shell spawn freeze); conflict-aware diff; ships `:TaskTutor` |
+| [neowarrior.nvim](https://github.com/duckdm/neowarrior.nvim) | Sidebar TUI with tree views, named reports, per-cwd configs | This plugin treats the database as a **buffer you edit with vim motions**, not a TUI you navigate with custom keys; picker-agnostic (works without Telescope); ships `:TaskTutor` |
+| [ribelo/taskwarrior.nvim](https://github.com/ribelo/taskwarrior.nvim) | Telescope picker + per-project `.taskwarrior.json` auto time-tracking | This plugin is markdown-buffer first; Telescope is an optional layer, not the primary UI; actively maintained; ships `:TaskTutor` |
+| [TaskWiki](https://github.com/tools-life/taskwiki) | Vimwiki extension with task-syntax checkboxes | This plugin is Neovim-native (no vimwiki dep), supports Taskwarrior 3.x, ships an automated test suite, and ships `:TaskTutor` |
+
+The interactive tutor is unique to this plugin — no other Neovim Taskwarrior integration ships one.
 
 ---
 
@@ -196,6 +217,7 @@ These are bundled but require their own host plugins.
 | `:TaskCalendar` | Tasks grouped by due date |
 | `:TaskTags` | Tag-frequency view |
 | `:TaskProjectAdd [name]` / `:TaskProjectRemove` / `:TaskProjectList` | Auto-project mapping |
+| `:TaskTutor [reset]` | Open the interactive tutorial; `reset` ends an active session and cleans up orphan temp dirs |
 
 ## Keybindings (buffer-local)
 

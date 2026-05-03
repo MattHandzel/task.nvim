@@ -224,6 +224,36 @@ Visualisation commands. See |taskwarrior-views|.
                         automatically on BufReadPost / BufWritePost of
                         `*.md` / `*.markdown` buffers.
 
+                                                              *:TaskTutor*
+:TaskTutor              Open the interactive tutorial. A 5-lesson, ~20-
+                        minute walkthrough that teaches the Taskwarrior
+                        CLI from scratch and graduates you into the
+                        plugin's buffer-as-database UX. Fully sandboxed:
+                        every `task` command runs against a throwaway DB
+                        in /tmp, with `rc.data.location=<temp>` and
+                        `rc.hooks=off` flags. The optional [Tutor shell]
+                        terminal split spawns `bash --norc --noprofile`
+                        with TASKDATA + TASKRC scoped to the temp dir,
+                        so user-typed `task add` (with no rc flags)
+                        also hits the sandbox.
+
+                        Navigation:
+                          <CR>   check this lesson and advance
+                          r      retry validation
+                          s      skip (only for skippable lessons)
+                          q      quit and clean up everything
+
+                        On exit (q, :bw, :qa, or VimLeave), the temp DB
+                        is deleted automatically. The structural
+                        guarantees are tested in
+                        tests/lua/spec/tutor_isolation_spec.lua and
+                        tests/lua/spec/tutor_lessons_spec.lua.
+
+                                                       *:TaskTutor-reset*
+:TaskTutor reset        End any active tutor session and scan /tmp for
+                        orphan `*_tw_tutor` directories left behind by
+                        prior crashes. Safe to run any time.
+
 ==============================================================================
 6. KEYBINDINGS                                          *taskwarrior-keybindings*
 
