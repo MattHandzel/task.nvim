@@ -257,6 +257,22 @@ local function build_payload(report_sections)
   local expected      = scrub_paths(report_sections.expected)
   local other         = scrub_paths(report_sections.other)
 
+  -- Recent WARN/ERROR notifications captured by notify.recent() — gives
+  -- the maintainer real diagnostic context without forcing the user to
+  -- copy-paste from :messages. Already path-scrubbed at notify time;
+  -- we additionally re-scrub here in case any new path showed up.
+  local recent = {}
+  local ok_notify, notify_mod = pcall(require, "taskwarrior.notify")
+  if ok_notify and type(notify_mod.recent) == "function" then
+    for _, entry in ipairs(notify_mod.recent()) do
+      table.insert(recent, {
+        timestamp = entry.timestamp,
+        level = entry.level == vim.log.levels.ERROR and "ERROR" or "WARN",
+        msg = scrub_paths(entry.msg or ""),
+      })
+    end
+  end
+
   return {
     version = 1,
     client = {
@@ -273,6 +289,7 @@ local function build_payload(report_sections)
       expected      = expected,
       other         = other,
     },
+    recent_log   = recent,
     submitted_at = os.date("!%Y-%m-%dT%H:%M:%SZ"),
   }
 end

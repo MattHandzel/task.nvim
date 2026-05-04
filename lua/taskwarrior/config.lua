@@ -158,6 +158,22 @@ M.defaults = {
 	-- The default changed from `false` to `nil` in v1.4.1 (was bricking the
 	-- form on every default install — see docs/launch/feedback-flow-design.md).
 	feedback_endpoint = nil,
+	-- Easy-feedback subkeys (v1.4.1). All opt-out via false.
+	--   capture_log       — ring buffer of last N WARN/ERROR notifications,
+	--                       auto-filled into the form's "Recent log entries"
+	--                       so users don't have to copy-paste from :messages.
+	--   capture_log_size  — ring cap (default 10).
+	--   hint_on_error     — append "Tip: press <leader>tF or :TaskFeedback
+	--                       last-error" to the FIRST ERROR notification per
+	--                       session.
+	--   feedback_key      — global key to open :TaskFeedback (set to false
+	--                       to disable, or any keystring to override).
+	feedback = {
+		capture_log      = true,
+		capture_log_size = 10,
+		hint_on_error    = true,
+		feedback_key     = "<leader>tF",
+	},
 	feedback_github_repo = "MattHandzel/taskwarrior.nvim", -- for GitHub issue fallback
 	-- :TaskDelegate — claude-code delegation defaults. Each field is overridable
 	-- per-invocation via the popup prompt.
