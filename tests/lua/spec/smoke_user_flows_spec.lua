@@ -259,6 +259,16 @@ describe("deep: tutor flows", function()
 
   after_each(function()
     pcall(require("taskwarrior.tutor")._cleanup)
+    -- Wipe any verify buffer left over from this test so the next one
+    -- doesn't find a stale match.
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_valid(b) then
+        local lines = vim.api.nvim_buf_get_lines(b, 0, 5, false)
+        if lines[1] and lines[1]:match("Tutor verification") then
+          pcall(vim.api.nvim_buf_delete, b, { force = true })
+        end
+      end
+    end
   end)
 
   it("after 'Start the tutor', a [TaskTutor] buffer exists and is shown", function()
@@ -322,6 +332,37 @@ describe("deep: tutor flows", function()
     assert.is_not_nil(tutor._get_session(), "no session after start")
     tutor._quit()
     assert.is_nil(tutor._get_session(), "_quit should null out the session")
+  end)
+
+  it("`q` on the verify buffer wipes it cleanly", function()
+    -- Pairs with the rendering test below — the verify buffer is
+    -- ephemeral; users dismiss with q. If the keymap stops working,
+    -- this catches it.
+    --
+    -- Note on firing `q`: nvim_buf_call opens a hidden autocmd window
+    -- and Vim refuses to :bdelete from inside one ("E813: Cannot close
+    -- autocmd window"). Switch to the verify buffer's real window
+    -- instead.
+    vim.ui.select = function(_items, _opts, on_choice)
+      on_choice("Show me the exact `task` commands first")
+    end
+    require("taskwarrior.tutor").start()
+    local verify_buf
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      local lines = vim.api.nvim_buf_get_lines(b, 0, 5, false)
+      if lines[1] and lines[1]:match("Tutor verification") then
+        verify_buf = b; break
+      end
+    end
+    assert.is_not_nil(verify_buf)
+    local wins = vim.fn.win_findbuf(verify_buf)
+    assert.is_truthy(#wins > 0, "verify buffer was not displayed in any window")
+    vim.api.nvim_set_current_win(wins[1])
+    vim.cmd("normal q")
+    -- Keymap uses `<cmd>bw<cr>` (wipe, not just unload), so the buffer
+    -- should be fully invalid afterward — no stray entry in :ls.
+    assert.is_false(vim.api.nvim_buf_is_valid(verify_buf),
+      "q on verify buffer did not wipe it (left a phantom in :ls)")
   end)
 
   it("verify buffer (Show me the exact `task` commands first) renders argv lines", function()
@@ -593,5 +634,66 @@ describe("deep: g? in :Task buffers wires correctly", function()
     assert.is_truthy(g_question.desc and g_question.desc:lower():match("bug"),
       "g? desc should mention 'bug' for :TaskHelp discoverability; got: "
         .. tostring(g_question.desc))
+  end)
+
+  it("firing `g?` for real opens the feedback form with sanitized context", function()
+    -- Catches the entire pipeline end-to-end: keymap fires →
+    -- context.capture runs against a real buffer → context.format
+    -- builds a markdown block → feedback.open_with_context inserts
+    -- it. Any breakage in the chain (renamed function, typo'd module,
+    -- broken regex) shows up here.
+    --
+    -- Firing g? requires the buffer to be focused in a real window
+    -- (nvim_buf_call alone runs the cmd in the buffer's context but
+    -- :normal g? executes against the current window's buffer).
+    -- Switch the current window to our task-style buffer first.
+    local task_buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(task_buf, 0, -1, false, {
+      "## Project Work",
+      "- [ ] Sensitive description text project:Work priority:H +urgent",
+      "- [ ] Pay rent due:2026-04-01 +bills",
+    })
+    vim.b[task_buf].taskwarrior_filter = "status:pending"
+    vim.b[task_buf].taskwarrior_sort   = "urgency-"
+    vim.b[task_buf].taskwarrior_group  = "project"
+    require("taskwarrior.buffer").setup_buf_keymaps(task_buf)
+
+    -- Move task_buf into the current window and put cursor on line 2.
+    vim.api.nvim_win_set_buf(0, task_buf)
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+
+    -- Fire g? via :normal — runs the buffer-local keymap.
+    local errors = trap_errors(function() vim.cmd("normal g?") end)
+    assert.equals(0, #errors,
+      "errors during real g? fire: " .. vim.inspect(errors))
+
+    -- Find the resulting feedback buffer and verify the context block
+    -- landed in "## Anything else?".
+    local fb_buf
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_get_name(b):find("taskwarrior.nvim Feedback", 1, true) then
+        fb_buf = b; break
+      end
+    end
+    assert.is_not_nil(fb_buf, "g? did not open the feedback form")
+
+    local content = table.concat(vim.api.nvim_buf_get_lines(fb_buf, 0, -1, false), "\n")
+    assert.is_truthy(content:find("Buffer context", 1, true),
+      "feedback form missing 'Buffer context' header from g? capture")
+    -- The capture metadata must be present.
+    assert.is_truthy(content:find("filter:", 1, true), "missing filter: line")
+    assert.is_truthy(content:find("status:pending", 1, true), "missing filter value")
+    -- The structural tokens from line 2 must be preserved verbatim.
+    assert.is_truthy(content:find("project:Work", 1, true),
+      "project:Work should be preserved verbatim in capture")
+    assert.is_truthy(content:find("+urgent", 1, true),
+      "+urgent tag should be preserved verbatim in capture")
+    -- The free-form description must NOT be present.
+    assert.is_nil(content:find("Sensitive", 1, true),
+      "free-form description leaked into feedback form (privacy violation): "
+        .. content)
+
+    pcall(vim.api.nvim_buf_delete, fb_buf,   { force = true })
+    pcall(vim.api.nvim_buf_delete, task_buf, { force = true })
   end)
 end)

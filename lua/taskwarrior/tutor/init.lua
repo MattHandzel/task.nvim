@@ -512,7 +512,9 @@ local function show_verify_buffer()
   vim.bo[buf].filetype  = "markdown"
   vim.cmd("tab split")
   vim.api.nvim_win_set_buf(0, buf)
-  vim.keymap.set("n", "q", "<cmd>bd<cr>",
+  -- :bw (wipe) rather than :bd (unload) — the verify buffer is ephemeral
+  -- and shouldn't accumulate in :ls across multiple invocations.
+  vim.keymap.set("n", "q", "<cmd>bw<cr>",
     { buffer = buf, nowait = true, silent = true, noremap = true })
 end
 
