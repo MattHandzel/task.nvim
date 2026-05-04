@@ -52,6 +52,18 @@ o                                       -- add new task inline
 }
 ```
 
+> **Already use [Shatur/neovim-tasks](https://github.com/Shatur/neovim-tasks) (or any other plugin that registers `:Task`)?** Override our prefix before the plugin loads:
+>
+> ```lua
+> {
+>   "matthandzel/taskwarrior.nvim",
+>   init = function() vim.g.taskwarrior_command_prefix = "Tw" end,
+>   config = function() require("taskwarrior").setup() end,
+> }
+> ```
+>
+> Now every command is `:Tw*` (`:Tw`, `:TwFilter`, `:TwInbox`, …) and Shatur's `:Task` keeps working. The plugin emits a one-shot WARN at startup if it detects a collision so you'll know to override.
+
 ## 🚀 Quick start
 
 ```

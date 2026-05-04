@@ -1,6 +1,13 @@
 local M = {}
 
 M.defaults = {
+	-- Prefix for every user command. Default "Task" → :Task, :TaskFilter, …
+	-- Override (issue #1, when conflicting with another plugin like
+	-- Shatur/neovim-tasks): set vim.g.taskwarrior_command_prefix BEFORE
+	-- the plugin loads (lazy.nvim users do this in `init = function() … end`),
+	-- or pass `command_prefix = "Tw"` to setup(). vim.g wins if both are set.
+	-- Must be a non-empty string starting with uppercase, letters only.
+	command_prefix = "Task",
 	on_delete = "done", -- "done" or "delete" when lines are removed
 	confirm = true, -- show confirmation dialog before applying
 	sort = "urgency-", -- default sort
@@ -165,6 +172,18 @@ M.options = {}
 function M.setup(opts)
 	require("taskwarrior.validate").validate(opts)
 	M.options = vim.tbl_deep_extend("force", {}, M.defaults, opts or {})
+
+	-- command_prefix reconciliation (issue #1):
+	-- vim.g.taskwarrior_command_prefix wins if set — it's the user-explicit
+	-- pre-load override (the only mechanism that works for the lazy :Task
+	-- registration in plugin/taskwarrior.lua, which runs before setup()).
+	-- If absent, fall back to setup-passed value, then default. Always
+	-- write back to vim.g so plugin/ and any later reload see the same value.
+	local prefix = vim.g.taskwarrior_command_prefix
+		or (opts and opts.command_prefix)
+		or M.defaults.command_prefix
+	M.options.command_prefix = prefix
+	vim.g.taskwarrior_command_prefix = prefix
 end
 
 return M

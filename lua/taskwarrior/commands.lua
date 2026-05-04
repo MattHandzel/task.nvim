@@ -1,10 +1,40 @@
 local M = {}
 
--- setup: register every :Task* user command on the running nvim.
+-- setup: register every :<prefix>* user command on the running nvim.
 --   main: the require("taskwarrior") module (so we can forward to M.open, M.filter, …)
 --   complete_filter: arg-lead → completion list (kept as a closure in init.lua)
+--
+-- Command names are configurable via config.options.command_prefix (default
+-- "Task"). All commands here are registered with the prefix prepended to
+-- their suffix, e.g. setup({ command_prefix = "Tw" }) creates :Tw, :TwFilter,
+-- :TwAdd, … See lua/taskwarrior/config.lua + tests/lua/spec/command_prefix_spec.lua.
 function M.setup(main, complete_filter)
-  vim.api.nvim_create_user_command("Task", function(cmd_opts)
+  local prefix = require("taskwarrior.config").options.command_prefix or "Task"
+
+  -- Collision detection — emit a single, actionable WARN if our base
+  -- command name (e.g. :Task or :Tw) is already defined by another plugin
+  -- (issue #1: the historical case is Shatur/neovim-tasks's :Task). We
+  -- still proceed with registration (nvim_create_user_command silently
+  -- overrides), since the user may want our :Task to win — but we tell
+  -- them how to opt out via the prefix knob.
+  local existing = vim.api.nvim_get_commands({})
+  if existing[prefix] then
+    vim.notify(
+      ("taskwarrior.nvim: collision — :%s is already defined by another plugin. "
+        .. "If you want both, override our prefix BEFORE the plugin loads:\n"
+        .. "  vim.g.taskwarrior_command_prefix = 'Tw'   -- or any unique prefix\n"
+        .. "or pass command_prefix = 'Tw' to setup(). See issue #1."):format(prefix),
+      vim.log.levels.WARN
+    )
+  end
+
+  -- register(suffix, fn, opts) — concatenate prefix + suffix, install.
+  -- suffix == "" gives the bare base command (e.g. :Task / :Tw).
+  local function register(suffix, fn, opts)
+    vim.api.nvim_create_user_command(prefix .. suffix, fn, opts or {})
+  end
+
+  register("", function(cmd_opts)
     main.open(cmd_opts.args)
   end, {
     nargs = "*",
@@ -12,7 +42,7 @@ function M.setup(main, complete_filter)
     complete = function(arg_lead) return complete_filter(arg_lead) end,
   })
 
-  vim.api.nvim_create_user_command("TaskFilter", function(cmd_opts)
+  register("Filter", function(cmd_opts)
     main.filter(cmd_opts.args)
   end, {
     nargs = "*",
@@ -20,15 +50,15 @@ function M.setup(main, complete_filter)
     complete = function(arg_lead) return complete_filter(arg_lead) end,
   })
 
-  vim.api.nvim_create_user_command("TaskRefresh", function()
+  register("Refresh", function()
     main.refresh()
   end, { nargs = 0, desc = "Refresh task buffer" })
 
-  vim.api.nvim_create_user_command("TaskUndo", function()
+  register("Undo", function()
     main.undo()
   end, { nargs = 0, desc = "Undo last save" })
 
-  vim.api.nvim_create_user_command("TaskSort", function(cmd_opts)
+  register("Sort", function(cmd_opts)
     main.sort(cmd_opts.args)
   end, {
     nargs = 1,
@@ -44,7 +74,7 @@ function M.setup(main, complete_filter)
     end,
   })
 
-  vim.api.nvim_create_user_command("TaskGroup", function(cmd_opts)
+  register("Group", function(cmd_opts)
     main.group(cmd_opts.args)
   end, {
     nargs = "?",
@@ -59,27 +89,27 @@ function M.setup(main, complete_filter)
     end,
   })
 
-  vim.api.nvim_create_user_command("TaskAdd", function()
+  register("Add", function()
     main.capture()
   end, { nargs = 0, desc = "Quick-capture a new task" })
 
-  vim.api.nvim_create_user_command("TaskHelp", function()
+  register("Help", function()
     main.help()
   end, { nargs = 0, desc = "Show taskwarrior.nvim help" })
 
-  vim.api.nvim_create_user_command("TaskProjectAdd", function(cmd_opts)
+  register("ProjectAdd", function(cmd_opts)
     main.project_add(cmd_opts.args)
   end, { nargs = "?", desc = "Register cwd as a Taskwarrior project" })
 
-  vim.api.nvim_create_user_command("TaskProjectRemove", function()
+  register("ProjectRemove", function()
     main.project_remove()
   end, { nargs = 0, desc = "Unregister cwd as a project" })
 
-  vim.api.nvim_create_user_command("TaskProjectList", function()
+  register("ProjectList", function()
     main.project_list()
   end, { nargs = 0, desc = "List registered projects" })
 
-  vim.api.nvim_create_user_command("TaskDelegate", function(cmd_opts)
+  register("Delegate", function(cmd_opts)
     local sub = cmd_opts.args
     if sub == "copy" or sub == "copy-command" then
       main.delegate_copy(sub)
@@ -93,19 +123,19 @@ function M.setup(main, complete_filter)
     complete = function() return { "copy", "copy-command" } end,
   })
 
-  vim.api.nvim_create_user_command("TaskStart", function()
+  register("Start", function()
     main.start_stop("start")
   end, { nargs = 0, desc = "Start the task on the cursor" })
 
-  vim.api.nvim_create_user_command("TaskStop", function()
+  register("Stop", function()
     main.start_stop("stop")
   end, { nargs = 0, desc = "Stop the task on the cursor" })
 
-  vim.api.nvim_create_user_command("TaskSave", function(cmd_opts)
+  register("Save", function(cmd_opts)
     main.view_save(cmd_opts.args)
   end, { nargs = 1, desc = "Save the current filter+sort+group as a named view" })
 
-  vim.api.nvim_create_user_command("TaskLoad", function(cmd_opts)
+  register("Load", function(cmd_opts)
     main.view_load(cmd_opts.args)
   end, {
     nargs = "?",
@@ -120,11 +150,11 @@ function M.setup(main, complete_filter)
     end,
   })
 
-  vim.api.nvim_create_user_command("TaskReview", function()
+  register("Review", function()
     main.review()
   end, { nargs = 0, desc = "Walk through pending tasks one at a time" })
 
-  vim.api.nvim_create_user_command("TaskDiffPreview", function(cmd_opts)
+  register("DiffPreview", function(cmd_opts)
     local dp = require("taskwarrior.diff_preview")
     local a = cmd_opts.args
     if a == "on" then dp.enable()
@@ -139,53 +169,53 @@ function M.setup(main, complete_filter)
   -- Visualization commands
   local views = require("taskwarrior.views")
 
-  vim.api.nvim_create_user_command("TaskBurndown", function()
+  register("Burndown", function()
     views.burndown()
   end, { nargs = 0, desc = "Show burndown chart" })
 
-  vim.api.nvim_create_user_command("TaskTree", function()
+  register("Tree", function()
     views.tree()
   end, { nargs = 0, desc = "Show dependency tree" })
 
-  vim.api.nvim_create_user_command("TaskSummary", function()
+  register("Summary", function()
     views.summary()
   end, { nargs = 0, desc = "Show project summary" })
 
-  vim.api.nvim_create_user_command("TaskCalendar", function()
+  register("Calendar", function()
     views.calendar()
   end, { nargs = 0, desc = "Show calendar view of due dates" })
 
-  vim.api.nvim_create_user_command("TaskTags", function()
+  register("Tags", function()
     views.tags()
   end, { nargs = 0, desc = "Show tag distribution" })
 
   -- Structured feedback buffer (opt-in; needs feedback_endpoint in setup)
-  vim.api.nvim_create_user_command("TaskFeedback", function()
+  register("Feedback", function()
     require("taskwarrior.feedback").open()
   end, { desc = "Send structured feedback about taskwarrior.nvim" })
 
   -- Task-level ops
-  vim.api.nvim_create_user_command("TaskAppend", function(o)
+  register("Append", function(o)
     main.append(o.args)
   end, { nargs = "*", desc = "Append text to description of task under cursor" })
 
-  vim.api.nvim_create_user_command("TaskPrepend", function(o)
+  register("Prepend", function(o)
     main.prepend(o.args)
   end, { nargs = "*", desc = "Prepend text to description of task under cursor" })
 
-  vim.api.nvim_create_user_command("TaskDuplicate", function()
+  register("Duplicate", function()
     main.duplicate()
   end, { nargs = 0, desc = "Duplicate the task under cursor" })
 
-  vim.api.nvim_create_user_command("TaskPurge", function(o)
+  register("Purge", function(o)
     main.purge(o.args)
   end, { nargs = "*", desc = "Irreversibly purge deleted tasks (by filter)" })
 
-  vim.api.nvim_create_user_command("TaskDenotate", function()
+  register("Denotate", function()
     main.denotate()
   end, { nargs = 0, desc = "Remove an annotation from the task under cursor" })
 
-  vim.api.nvim_create_user_command("TaskModifyField", function(o)
+  register("ModifyField", function(o)
     main.modify_field_by_name(o.args)
   end, {
     nargs = 1,
@@ -193,7 +223,7 @@ function M.setup(main, complete_filter)
     complete = function() return { "project", "priority", "due", "tag" } end,
   })
 
-  vim.api.nvim_create_user_command("TaskBulkModify", function(o)
+  register("BulkModify", function(o)
     main.bulk_modify({ o.line1, o.line2 }, o.args)
   end, {
     nargs = "+", range = true,
@@ -201,7 +231,7 @@ function M.setup(main, complete_filter)
   })
 
   -- Named reports (task next / active / overdue / ...)
-  vim.api.nvim_create_user_command("TaskReport", function(o)
+  register("Report", function(o)
     main.report(o.args)
   end, {
     nargs = "?",
@@ -217,23 +247,23 @@ function M.setup(main, complete_filter)
   })
 
   -- Differentiators
-  vim.api.nvim_create_user_command("TaskGraph", function()
+  register("Graph", function()
     main.graph()
   end, { nargs = 0, desc = "Render the dependency graph as a Mermaid diagram" })
 
-  vim.api.nvim_create_user_command("TaskInbox", function()
+  register("Inbox", function()
     main.inbox()
   end, { nargs = 0, desc = "Triage recently-added tasks with no project/due/tags" })
 
-  vim.api.nvim_create_user_command("TaskExport", function(o)
+  register("Export", function(o)
     main.export(o.args)
   end, { nargs = "?", desc = "Write the rendered task buffer to a markdown file" })
 
-  vim.api.nvim_create_user_command("TaskSync", function()
+  register("Sync", function()
     main.sync()
   end, { nargs = 0, desc = "Run `task sync` with progress and error handling" })
 
-  vim.api.nvim_create_user_command("TaskFloat", function(o)
+  register("Float", function(o)
     require("taskwarrior.buffer").open_float(o.args)
   end, {
     nargs = "*",
@@ -242,7 +272,7 @@ function M.setup(main, complete_filter)
   })
 
   -- Interactive tutor (sandboxed; never touches real ~/.task)
-  vim.api.nvim_create_user_command("TaskTutor", function(o)
+  register("Tutor", function(o)
     local tutor = require("taskwarrior.tutor")
     if o.args == "reset" then
       tutor.reset()
@@ -258,13 +288,13 @@ function M.setup(main, complete_filter)
   })
 
   -- Nested checkbox → dependency helpers
-  vim.api.nvim_create_user_command("TaskLinkChildren", function()
+  register("LinkChildren", function()
     require("taskwarrior.nested").link_children()
   end, {
     nargs = 0,
     desc = "Mark indented tasks below cursor as depends: of the cursor task",
   })
-  vim.api.nvim_create_user_command("TaskUnlinkChildren", function()
+  register("UnlinkChildren", function()
     require("taskwarrior.nested").unlink_children()
   end, { nargs = 0, desc = "Remove depends: for indented children of cursor task" })
 end

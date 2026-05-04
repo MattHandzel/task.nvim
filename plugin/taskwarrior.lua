@@ -50,22 +50,38 @@ local function lazy(method)
 end
 
 -- Primary command. All other commands are created inside setup() — we only
--- define :Task here as the lazy entrypoint so users get a clear error rather
--- than "command not found" when they haven't called setup() yet.
-vim.api.nvim_create_user_command("Task", function(cmd_opts)
-  local ok, task = pcall(require, "taskwarrior")
-  if not ok then
-    vim.notify("taskwarrior.nvim: failed to load — " .. tostring(task), vim.log.levels.ERROR)
-    return
-  end
-  if type(task.setup) == "function" and not vim.g._taskwarrior_setup_done then
-    pcall(task.setup, {})
-    vim.g._taskwarrior_setup_done = 1
-  end
-  task.open(cmd_opts.args)
-end, {
-  nargs = "*",
-  desc = "Open Taskwarrior tasks as markdown",
-})
+-- define :<prefix> here as the lazy entrypoint so users get a clear error
+-- rather than "command not found" when they haven't called setup() yet.
+--
+-- Issue #1: the prefix is configurable. We read vim.g.taskwarrior_command_prefix
+-- here because plugin/ runs BEFORE the user's setup() call, so config.options
+-- isn't populated yet. Users override the lazy command name by setting
+-- vim.g.taskwarrior_command_prefix in their init (lazy.nvim users: in the
+-- spec's `init = function() … end` block, which runs at load time).
+local lazy_prefix = vim.g.taskwarrior_command_prefix or "Task"
+if lazy_prefix:match("^[A-Z][A-Za-z]*$") then
+  vim.api.nvim_create_user_command(lazy_prefix, function(cmd_opts)
+    local ok, task = pcall(require, "taskwarrior")
+    if not ok then
+      vim.notify("taskwarrior.nvim: failed to load — " .. tostring(task), vim.log.levels.ERROR)
+      return
+    end
+    if type(task.setup) == "function" and not vim.g._taskwarrior_setup_done then
+      pcall(task.setup, {})
+      vim.g._taskwarrior_setup_done = 1
+    end
+    task.open(cmd_opts.args)
+  end, {
+    nargs = "*",
+    desc = "Open Taskwarrior tasks as markdown",
+  })
+else
+  vim.notify(
+    ("taskwarrior.nvim: invalid vim.g.taskwarrior_command_prefix '%s' — "
+      .. "must match ^[A-Z][A-Za-z]*$. Lazy entrypoint not registered; "
+      .. "fix your prefix and restart."):format(lazy_prefix),
+    vim.log.levels.ERROR
+  )
+end
 
 _G._taskwarrior_lazy = lazy  -- kept for future use; not publicly documented

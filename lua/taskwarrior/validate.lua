@@ -17,6 +17,7 @@ local KNOWN_KEYS = {
 	"tag_colors", "urgency_colors", "notifications", "granulation",
 	"header_stats", "icons", "urgency_bar", "relative_dates",
 	"relative_date_refresh_ms", "show_urgency", "overdue_badge",
+	"command_prefix",
 }
 
 -- All valid delegate sub-keys (nil-defaulted keys included).
@@ -376,6 +377,30 @@ function M.validate(opts)
 					)
 				end
 			end
+		end
+	end
+
+	-- 14. command_prefix — must be a string of one or more letters starting
+	-- with uppercase. Vim user-command names must begin with uppercase
+	-- A-Z; we additionally require the rest to be letters only so that
+	-- concatenating it with our suffixes (e.g. "Filter", "Inbox") produces
+	-- valid command names. Issue #1.
+	if opts.command_prefix ~= nil then
+		if type(opts.command_prefix) ~= "string" then
+			error(
+				("taskwarrior.nvim: command_prefix must be a string, got %s"):format(
+					type(opts.command_prefix)
+				),
+				0
+			)
+		end
+		if not opts.command_prefix:match("^[A-Z][A-Za-z]*$") then
+			error(
+				("taskwarrior.nvim: command_prefix '%s' must match ^[A-Z][A-Za-z]*$ "
+					.. "(non-empty, starts with uppercase letter, letters only)")
+					:format(opts.command_prefix),
+				0
+			)
 		end
 	end
 end

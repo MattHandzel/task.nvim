@@ -224,6 +224,26 @@ Visualisation commands. See |taskwarrior-views|.
                         automatically on BufReadPost / BufWritePost of
                         `*.md` / `*.markdown` buffers.
 
+                                                       *taskwarrior-prefix*
+
+All :Task* command names share a prefix (default "Task"). Configure with:
+
+    vim.g.taskwarrior_command_prefix = "Tw"   " before plugin loads
+    -- or --
+    require("taskwarrior").setup({ command_prefix = "Tw" })
+
+vim.g wins if both are set (it's the only mechanism that affects the lazy
+:Task entrypoint registered by plugin/taskwarrior.lua, which runs before
+setup()). Lazy.nvim users: put it in the `init = function() … end` block.
+
+The plugin emits one WARN at startup if `:<prefix>` is already defined by
+another plugin (issue #1 — historical case: Shatur/neovim-tasks's :Task).
+The override takes effect immediately on next nvim start.
+
+Prefix must match `^[A-Z][A-Za-z]*$` (Vim command names need leading
+uppercase; we additionally require letters only so the suffix concatenation
+produces a valid command name).
+
                                                               *:TaskTutor*
 :TaskTutor              Open the interactive tutorial. A 5-lesson, ~20-
                         minute walkthrough that teaches the Taskwarrior
