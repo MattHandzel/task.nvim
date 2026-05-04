@@ -340,10 +340,14 @@ end
 
 -- Public surface for tests + commands.lua entry. Renders a lesson with
 -- all the current-session machinery hooked up.
+--
+-- Note: render_lesson(idx) MAY nil out _session as a side effect — when
+-- idx is past the last lesson, render_lesson routes to _graduate which
+-- calls _cleanup. So we must not assume _session survives the call.
 function M._open_lesson_buffer(idx)
   if not _session then return end
   render_lesson(idx)
-  return _session.lesson_buf
+  return _session and _session.lesson_buf or nil
 end
 
 -- ───────────────────────────────────────────────────────────────────────────
