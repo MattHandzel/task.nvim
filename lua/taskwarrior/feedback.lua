@@ -248,6 +248,9 @@ local function build_payload(report_sections)
 
   local task_count_raw = vim.fn.system("task rc.bulk=0 rc.confirmation=off count 2>/dev/null")
   local task_count = tonumber((task_count_raw or ""):match("%d+")) or 0
+  -- DP-style bucket so we never share a unique-identifying integer.
+  -- See lua/taskwarrior/feedback/privacy.lua + the design doc.
+  local task_count_bucket = require("taskwarrior.feedback.privacy").bucket_count(task_count)
 
   -- Scrub report fields
   local what_happened = scrub_paths(report_sections.what_happened)
@@ -257,13 +260,13 @@ local function build_payload(report_sections)
   return {
     version = 1,
     client = {
-      plugin_version = get_plugin_version(),
-      nvim_version   = nvim_ver_str,
-      os             = os_str,
-      tw_version     = tw_ver,
-      backend        = backend,
-      task_count     = task_count,
-      config_summary = config_summary,
+      plugin_version    = get_plugin_version(),
+      nvim_version      = nvim_ver_str,
+      os                = os_str,
+      tw_version        = tw_ver,
+      backend           = backend,
+      task_count_bucket = task_count_bucket,
+      config_summary    = config_summary,
     },
     report = {
       what_happened = what_happened,
@@ -373,14 +376,12 @@ local function handle_save(buf)
   local endpoint = config.options.feedback_endpoint
   local github_repo = config.options.feedback_github_repo
 
-  -- Endpoint disabled check
-  if endpoint == false then
-    vim.notify(
-      "taskwarrior.nvim: feedback is disabled (feedback_endpoint = false in config)",
-      vim.log.levels.WARN
-    )
-    return
-  end
+  -- No need to recheck endpoint == false here: M.open() refuses to create
+  -- the buffer in that case, so handle_save can never be reached with
+  -- feedback explicitly disabled. Previously this duplicate check was
+  -- gating the post-save flow on `endpoint == false`, but the same was
+  -- true at open time — so the check was either redundant (the buffer
+  -- couldn't exist) or wrong (would have blocked the GitHub path).
 
   -- Parse buffer
   local sections = parse_buffer(buf)
@@ -395,8 +396,18 @@ local function handle_save(buf)
   local json_str = json_encode(payload)
   local json_display = json_pretty(payload)
 
-  -- Offer choices
-  local choices = { "Send", "Copy payload to clipboard", "Open as GitHub issue", "Cancel" }
+  -- Offer choices. The "Send" action is only available when an HTTP
+  -- endpoint is configured (default: nil → no Send option). The
+  -- GitHub-issue + clipboard paths always work — they're the always-on
+  -- fallbacks that fix the "msakiart couldn't even report it" gap.
+  local choices = {}
+  if type(endpoint) == "string" and endpoint ~= "" then
+    table.insert(choices, "Send")
+  end
+  table.insert(choices, "Open as GitHub issue")
+  table.insert(choices, "Copy payload to clipboard")
+  table.insert(choices, "Cancel")
+
   vim.ui.select(choices, {
     prompt = "taskwarrior.nvim feedback — review payload:\n\n" .. json_display .. "\n\nAction?",
   }, function(choice)
@@ -406,13 +417,6 @@ local function handle_save(buf)
     end
 
     if choice == "Send" then
-      if not endpoint then
-        vim.notify(
-          "taskwarrior.nvim: no feedback_endpoint configured; use 'Copy payload to clipboard' or 'Open as GitHub issue'",
-          vim.log.levels.WARN
-        )
-        return
-      end
       do_send(json_str, endpoint, buf)
 
     elseif choice == "Copy payload to clipboard" then
@@ -437,7 +441,14 @@ end
 function M.open()
   local config = require("taskwarrior.config")
 
-  -- Respect disabled endpoint
+  -- Explicit opt-out: user set feedback_endpoint = false (boolean false,
+  -- not nil). Honor that — refuse to open the form.
+  --
+  -- Default (nil) opens the form; the GitHub-issue and clipboard paths
+  -- need no endpoint. The "Send" choice is hidden in handle_save when
+  -- endpoint is nil (a non-string can't be POSTed to). Pre-v1.4.1 the
+  -- default was `false` and the form was bricked on every install —
+  -- this was the bug behind issue #2's "couldn't even report it" gap.
   if config.options.feedback_endpoint == false then
     vim.notify(
       "taskwarrior.nvim: feedback is disabled (feedback_endpoint = false in config)",
@@ -493,5 +504,10 @@ function M.open()
     vim.cmd("bwipeout!")
   end, { buffer = buf, noremap = true, silent = true })
 end
+
+-- Test-only export — lets tests/lua/spec/feedback_open_spec.lua exercise
+-- payload construction without spawning a real `task` subprocess. Not
+-- public API; the leading underscore signals "tests may peek".
+M._build_payload = build_payload
 
 return M

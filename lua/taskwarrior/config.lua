@@ -150,7 +150,14 @@ M.defaults = {
 	-- long-open buffers handle midnight cross cleanly. Set to 0 to
 	-- disable periodic refresh (CursorHold only).
 	relative_date_refresh_ms = 60 * 1000,
-	feedback_endpoint = false, -- set to "https://matthandzel.com/api/task-feedback" to enable
+	-- HTTP endpoint for the optional "Send" action in :TaskFeedback.
+	--   nil   (default): GitHub-issue and clipboard paths are available;
+	--                    Send action is hidden. Form opens normally.
+	--   false           : explicit opt-out — :TaskFeedback refuses to open.
+	--   "https://..."   : enables the Send action.
+	-- The default changed from `false` to `nil` in v1.4.1 (was bricking the
+	-- form on every default install — see docs/launch/feedback-flow-design.md).
+	feedback_endpoint = nil,
 	feedback_github_repo = "MattHandzel/taskwarrior.nvim", -- for GitHub issue fallback
 	-- :TaskDelegate — claude-code delegation defaults. Each field is overridable
 	-- per-invocation via the popup prompt.
