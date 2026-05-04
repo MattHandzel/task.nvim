@@ -137,6 +137,45 @@ describe("taskwarrior.tutor.lessons — structural", function()
       assert.equals(tutor._get_session().tmp_dir, target_path)
     end)
 
+    it("api.export splits multi-word filters into separate argv elements", function()
+      -- Regression for the "lesson 4 won't advance" bug. Taskwarrior treats
+      -- each argv element as a separate token; a multi-word filter passed
+      -- as ONE element (e.g. "status:completed description.contains:rent")
+      -- comes through as a single weird token that doesn't apply either
+      -- condition. The user marks the task done, the validator runs, and
+      -- gets back zero results — they're stuck on the lesson.
+      tutor._begin_session()
+      original_system("true")
+      local captured
+      vim.fn.system = function(argv)
+        captured = argv
+        return "[]"
+      end
+
+      local api = lessons.make_api(tutor)
+      api.export("status:completed description.contains:rent")
+
+      -- Walk argv looking for the two filter tokens. They MUST be separate
+      -- elements; finding the joined string means the bug is back.
+      local has_status, has_desc, has_joined = false, false, false
+      for _, a in ipairs(captured) do
+        if a == "status:completed"             then has_status = true end
+        if a == "description.contains:rent"    then has_desc   = true end
+        if a == "status:completed description.contains:rent" then
+          has_joined = true
+        end
+      end
+      assert.is_true(has_status,
+        "argv missing 'status:completed' as a separate element; got "
+          .. vim.inspect(captured))
+      assert.is_true(has_desc,
+        "argv missing 'description.contains:rent' as a separate element; got "
+          .. vim.inspect(captured))
+      assert.is_false(has_joined,
+        "filter was passed as a single joined token (the bug); got "
+          .. vim.inspect(captured))
+    end)
+
     it("api.pending_count routes through the sandboxed prefix", function()
       tutor._begin_session()
       original_system("true")

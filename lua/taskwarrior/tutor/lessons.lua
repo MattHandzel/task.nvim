@@ -268,11 +268,23 @@ M.lessons = {
 -- to bypass.
 function M.make_api(tutor)
   return {
-    -- Run `task <filter> export` against the tutor DB and return the
+    -- Run `task <filter...> export` against the tutor DB and return the
     -- parsed JSON array (empty list on error).
+    --
+    -- The filter is split on whitespace because vim.fn.system(argv) with
+    -- a table form treats each element as a SEPARATE argv entry — and
+    -- Taskwarrior parses argv element-by-element. Passing
+    --   "status:completed description.contains:rent"
+    -- as one element would make Taskwarrior see a single weird token and
+    -- silently drop both conditions (validator returns 0, lesson stuck).
+    -- Bug surfaced in lesson 4 ("Pay rent" → done) before the fix landed.
     export = function(filter)
       local argv = tutor._task_argv_prefix()
-      if filter and filter ~= "" then table.insert(argv, filter) end
+      if filter and filter ~= "" then
+        for token in tostring(filter):gmatch("%S+") do
+          table.insert(argv, token)
+        end
+      end
       table.insert(argv, "export")
       local out = vim.fn.system(argv)
       if vim.v.shell_error ~= 0 or out == "" then return {} end
