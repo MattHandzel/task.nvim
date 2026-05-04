@@ -338,20 +338,29 @@ end
 -- GitHub issue fallback
 -- ---------------------------------------------------------------------------
 
-local function open_github_issue(payload, github_repo)
-  local c = payload.client
+-- GitHub silently rejects new-issue prefill URLs longer than ~8KB
+-- ("Whoa there! Your request URL is too long."). We pick a conservative
+-- ceiling well under that, leaving headroom for the host/path/title.
+local GITHUB_URL_LIMIT = 7000
+
+local function build_github_body(payload)
+  local c = payload.client or {}
+  -- env_block uses task_count_bucket — the field rename in v1.4.1
+  -- (was task_count integer). The old field name produced "task_count:
+  -- nil" in every report after the rename. Regression test:
+  -- tests/lua/spec/feedback_github_url_spec.lua.
   local env_block = table.concat({
     "```",
-    "plugin_version: " .. tostring(c.plugin_version),
-    "nvim_version:   " .. tostring(c.nvim_version),
-    "os:             " .. tostring(c.os),
-    "tw_version:     " .. tostring(c.tw_version),
-    "backend:        " .. tostring(c.backend),
-    "task_count:     " .. tostring(c.task_count),
+    "plugin_version:    " .. tostring(c.plugin_version),
+    "nvim_version:      " .. tostring(c.nvim_version),
+    "os:                " .. tostring(c.os),
+    "tw_version:        " .. tostring(c.tw_version),
+    "backend:           " .. tostring(c.backend),
+    "task_count_bucket: " .. tostring(c.task_count_bucket),
     "```",
   }, "\n")
 
-  local body = table.concat({
+  return table.concat({
     "## What happened?",
     "",
     payload.report.what_happened,
@@ -368,20 +377,51 @@ local function open_github_issue(payload, github_repo)
     "",
     env_block,
   }, "\n")
+end
 
-  local url = "https://github.com/"
-    .. github_repo
-    .. "/issues/new?title="
-    .. url_encode("Feedback")
-    .. "&body="
-    .. url_encode(body)
-
-  -- nvim 0.10+ has vim.ui.open; fall back to xdg-open
+local function do_open(url)
   if vim.ui.open then
     vim.ui.open(url)
   else
     vim.fn.system("xdg-open '" .. url .. "'")
   end
+end
+
+local function open_github_issue(payload, github_repo)
+  local body  = build_github_body(payload)
+  local title = "Feedback"
+  local base  = "https://github.com/" .. github_repo
+             .. "/issues/new?title=" .. url_encode(title)
+  local full_url = base .. "&body=" .. url_encode(body)
+
+  if #full_url <= GITHUB_URL_LIMIT then
+    -- Body fits in URL — open directly.
+    do_open(full_url)
+    return
+  end
+
+  -- Body too large for GitHub's URL-prefill endpoint. Fall back to
+  -- clipboard: copy the full body to clipboard, open the new-issue
+  -- page with a placeholder body that tells the user where their
+  -- content is. Better than landing on GitHub's "Whoa there!" page.
+  pcall(vim.fn.setreg, "+", body)
+  pcall(vim.fn.setreg, '"', body)
+  local placeholder = table.concat({
+    "[Issue body was too long for GitHub's URL prefill (" .. #full_url
+      .. " chars > " .. GITHUB_URL_LIMIT .. " ceiling).",
+    "",
+    "The full report has been copied to your clipboard — please paste",
+    "it here, then submit the issue.]",
+  }, "\n")
+  local fallback_url = base .. "&body=" .. url_encode(placeholder)
+
+  vim.notify(
+    "taskwarrior.nvim: feedback body too large for GitHub URL prefill ("
+      .. #full_url .. " chars). Full report copied to your clipboard — "
+      .. "paste it into the issue body when GitHub opens.",
+    vim.log.levels.WARN
+  )
+  do_open(fallback_url)
 end
 
 -- ---------------------------------------------------------------------------
@@ -597,9 +637,12 @@ function M.open_with_context(markdown_block)
   end
 end
 
--- Test-only export — lets tests/lua/spec/feedback_open_spec.lua exercise
--- payload construction without spawning a real `task` subprocess. Not
--- public API; the leading underscore signals "tests may peek".
-M._build_payload = build_payload
+-- Test-only exports — let specs poke at internals without spawning real
+-- subprocesses or monkey-patching upvalues. Not public API; the leading
+-- underscore signals "tests may peek".
+M._build_payload      = build_payload
+M._build_github_body  = build_github_body
+M._open_github_issue  = open_github_issue
+M._GITHUB_URL_LIMIT   = GITHUB_URL_LIMIT
 
 return M
