@@ -49,6 +49,41 @@ tests that only assert "module loads", "command registers", or
 "helper returns a list" do NOT verify the feature. They catch syntax
 errors, nothing else.
 
+**Hard rule: every user-facing flow gets a smoke test.**
+
+A "user-facing flow" is any code path triggered by: a `:Task*` command
+callback, a `vim.ui.select` / `vim.ui.input` callback, a buffer-local
+keymap (e.g. `g?`, `<CR>`), a global keymap (e.g. `<leader>tF`), or any
+popup/picker/buffer the user can hit. For each one, add an entry to
+`tests/lua/spec/smoke_user_flows_spec.lua` that:
+
+  1. Stubs `vim.ui.select` / `vim.ui.input` so the flow doesn't block.
+  2. Invokes the entry point headlessly (e.g. `tutor.start()`,
+     `feedback.last_error()`, the keymap callback).
+  3. Drains pending `vim.schedule` callbacks via `vim.wait(50, …)` so
+     errors thrown inside scheduled closures fire before the assertion.
+  4. Asserts no real Lua / vim API error surfaced — match on
+     `Error executing`, `stack traceback:`, `attempt to`, vim error
+     codes (`E\d+:`), or specific error fragments like
+     `'replacement string'`. **Do not** treat intentional ERROR-level
+     `vim.notify()` calls as failures — those are user messages, not
+     bugs.
+
+The smoke test bar is "feature does not crash on the happy path of
+every selection / argument value". It is intentionally weaker than the
+feature-correctness bar (which requires asserting outputs). It exists
+to catch the class of bug that ships when unit tests verify primitives
+in isolation but no test ever drives the actual user journey.
+
+Concrete example: the v1.4.1 verify-buffer bug
+(`'replacement string' item contains newlines` at `init.lua:497`)
+shipped because every existing tutor test exercised _begin_session,
+_cleanup, the argv prefix, and orphan recovery — but none invoked
+`:TaskTutor` and selected "Show me the exact `task` commands first".
+The smoke spec added in that commit reproduces the original failure
+when the fix is reverted (verified) and is what you must add for any
+new user-facing flow before claiming "shipped".
+
 Bar per feature category:
 
 - **Commands that mutate a task** (`:TaskAppend`, `:TaskModifyField`, …):

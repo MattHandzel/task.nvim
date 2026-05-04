@@ -459,6 +459,10 @@ end
 -- exactly where the sandbox lives before agreeing.
 
 local function show_verify_buffer()
+  -- Each entry in this list becomes one buffer line. nvim_buf_set_lines
+  -- rejects any element containing \n (raises "'replacement string' item
+  -- contains newlines"), so we cannot use table.concat with newline
+  -- separators here — every argv element gets its own line.
   local sample_argv = {
     "task",
     "rc.data.location=" .. (vim.fn.tempname() .. TUTOR_DIR_SUFFIX) .. "  (illustrative — created on consent)",
@@ -474,7 +478,11 @@ local function show_verify_buffer()
     "",
     "Every `task` command run by the tutor uses this argv prefix:",
     "",
-    "  " .. table.concat(sample_argv, "\n  "),
+  }
+  for _, a in ipairs(sample_argv) do
+    table.insert(lines, "  " .. a)
+  end
+  for _, l in ipairs({
     "",
     "Key isolation flags:",
     "",
@@ -492,7 +500,7 @@ local function show_verify_buffer()
     "exact invariants.",
     "",
     "Press q or :bd to close this window, then re-run :TaskTutor.",
-  }
+  }) do table.insert(lines, l) end
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.bo[buf].buftype   = "nofile"
