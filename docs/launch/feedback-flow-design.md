@@ -207,14 +207,50 @@ positions at the top level, but `feedback_endpoint` defaults change from
 
 ---
 
-## Open questions for review
+## Decisions (post-review)
 
-1. **Default keymap or no?** I'm proposing `feedback_key = nil` (opt-in). Argument for `<leader>tF` default: discoverability. Argument against: `<leader>` real estate is contentious. Decision lean: nil; we mention it in the README's keymap table with the suggested binding.
+1. **`<leader>tF` is the default global keymap.** Discoverability wins over leader-key real estate; the user can disable via `setup({ feedback = { feedback_key = false } })`.
 
-2. **Should the hint append to the error notify, or be a separate scheduled notify?** Append risks looking like the hint is part of the error message. Scheduled risks the user dismissing the error before the hint shows. Lean: separate scheduled notify with a 100ms delay so it appears as a distinct line.
+2. **Hint appends to the error notify message.** Same notification, two lines:
+   ```
+   [ERROR] taskwarrior.nvim: task export failed: ...
+   Tip: press <leader>tF or :TaskFeedback last-error to report this.
+   ```
+   One per session. Less visually noisy than a second scheduled notify; the user reads the error and the hint together.
 
-3. **Anonymize task counts?** Currently the Environment section sends `task_count: 127`. Some users will be uncomfortable with that. Lean: keep it (low-sensitivity), but bucket to the nearest order of magnitude (`task_count: ~100`) to soften it.
+3. **Differential-privacy-style bucketing for `task_count`.** Logarithmic-ish buckets, reported as a range string:
+   - `0` → `0`
+   - `1-2`, `3-5`, `6-10`, `11-25`, `26-100`, `101-500`, `501-2000`, `2001-10000`, `10001+`
 
-4. **Capture INFO-level notifications?** Currently scoped to WARN+. INFO would catch successful applies and other "things just worked" messages — useful context for "why did it work the first time and break the second?" but more noise than signal in most reports. Lean: WARN+ only.
+   Each bucket is wide enough that it's not unique-identifying. Sent as `task_count_bucket: "26-100"`, never the raw integer. Same approach extended to any future numeric counters (annotation count, project count) before they ship.
 
-5. **Bottom-of-buffer feedback shortcut?** Add `[g?]` keymap inside `:Task` buffers that opens `:TaskFeedback` with the current buffer state attached as context (filter, sort, group, line under cursor — but never task contents). Useful for "the renderer broke on my data" reports. Lean: yes, add in commit 4.
+4. **WARN+ ring buffer only.** INFO captures would balloon the report with no signal. Decision: stay with WARN+ (existing lean).
+
+5. **`g?` in `:Task` buffers** opens `:TaskFeedback` and prefills the form with sanitized buffer context.
+
+   **Sanitization rule for `:Task` buffer lines (the privacy-sensitive part):** Taskwarrior structural tokens are preserved verbatim — the user shares the *shape* of their tasks for debugging, not the *content*. Description text (free-form) has every `[A-Za-z0-9]` character replaced with `a`, preserving length and punctuation so the layout still reproduces the bug.
+
+   Preserved verbatim:
+   - Checkbox prefix: `- [ ]`, `- [x]`, `- [>]`
+   - Project: `project:Work`
+   - Priority: `priority:H`
+   - Dates: `due:2026-04-01`, `scheduled:`, `recur:`, `wait:`, `until:`
+   - Tags: `+urgent`, `-blocked`
+   - Effort/depends: `effort:1h`, `depends:abc12345`
+   - UUID comment: `<!-- uuid:abc12345 -->`
+   - Group/header markers: `## ` prefix (the heading text itself is scrubbed)
+
+   Scrubbed (alphanumerics → `a`):
+   - Free-form description text
+   - Group header content after `## `
+   - Annotation text
+
+   Example:
+   ```
+   - [ ] Fix login bug for user@company.com project:Work priority:H due:2026-04-01 +urgent
+                                                                                          ↓
+   - [ ] aaa aaaaa aaa aaa aaaa@aaaaaaa.aaa project:Work priority:H due:2026-04-01 +urgent
+   ```
+   Length, structural tokens, punctuation, and the email's `@`/`.` shape all preserved. Letters scrambled.
+
+   The scrubbed buffer snapshot (max 50 lines around cursor) is shown in the form's "Anything else?" section so the user can review/redact before send.
