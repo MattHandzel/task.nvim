@@ -569,6 +569,34 @@ function M.last_error()
   end
 end
 
+-- Open the form with `markdown_block` prefilled into the
+-- "Anything else?" section. Used by the :Task buffer's `g?` shortcut
+-- (lua/taskwarrior/feedback/context.lua does the sanitized capture).
+function M.open_with_context(markdown_block)
+  M.open()
+
+  local fb_buf
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_get_name(b):find("taskwarrior.nvim Feedback", 1, true) then
+      fb_buf = b
+      break
+    end
+  end
+  if not fb_buf then return end
+
+  local lines = vim.api.nvim_buf_get_lines(fb_buf, 0, -1, false)
+  for i, line in ipairs(lines) do
+    if line:match("^## Anything else") then
+      -- Insert the context block on the line directly after the header.
+      -- Split into individual lines to preserve markdown formatting.
+      local block_lines = vim.split(markdown_block, "\n", { plain = true })
+      vim.api.nvim_buf_set_lines(fb_buf, i, i, false, block_lines)
+      vim.bo[fb_buf].modified = false
+      break
+    end
+  end
+end
+
 -- Test-only export — lets tests/lua/spec/feedback_open_spec.lua exercise
 -- payload construction without spawning a real `task` subprocess. Not
 -- public API; the leading underscore signals "tests may peek".

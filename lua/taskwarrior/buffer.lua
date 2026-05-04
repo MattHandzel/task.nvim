@@ -840,6 +840,19 @@ end
 function M.setup_buf_keymaps(bufnr)
   local opts = { buffer = bufnr, noremap = true, silent = true }
 
+  -- g? — open :TaskFeedback prefilled with sanitized buffer context.
+  -- The launch-week ergonomic for "the renderer broke on my data" reports.
+  -- Capture sanitization rules live in lua/taskwarrior/feedback/context.lua.
+  vim.keymap.set("n", "g?", function()
+    local context  = require("taskwarrior.feedback.context")
+    local feedback = require("taskwarrior.feedback")
+    local cursor   = vim.api.nvim_win_get_cursor(0)
+    local snap = context.capture(bufnr, cursor[1])
+    feedback.open_with_context(context.format(snap))
+  end, vim.tbl_extend("force", opts, {
+    desc = "taskwarrior.nvim: Report a bug with sanitized buffer context",
+  }))
+
   -- Smart j/k: do screen-line movement (gj/gk) for wrapped-line navigation,
   -- but if the cursor gets stuck on a phantom screen line created by the
   -- concealed UUID comment at the end of task lines, fall back to buffer-line
