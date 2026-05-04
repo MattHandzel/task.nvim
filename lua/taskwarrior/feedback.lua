@@ -522,6 +522,53 @@ function M.open()
   end, { buffer = buf, noremap = true, silent = true })
 end
 
+-- Open the form prefilled with the most recent ERROR captured by the
+-- ring buffer in lua/taskwarrior/notify.lua. The launch-week killer
+-- feature: gets a user from "saw an error" to "GitHub issue submitted"
+-- in ~30 seconds because they don't have to retype the error.
+function M.last_error()
+  local ok_notify, notify_mod = pcall(require, "taskwarrior.notify")
+  local last
+  if ok_notify and type(notify_mod.recent) == "function" then
+    for _, e in ipairs(notify_mod.recent()) do
+      if e.level == vim.log.levels.ERROR then last = e end
+    end
+  end
+
+  -- Open the form first so the user has a buffer to land in even when
+  -- there's no recorded error (defensive; e.g. if they ran the command
+  -- before any errors fired).
+  M.open()
+
+  -- Find the buffer we just opened. Match on the unique name.
+  local fb_buf
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_get_name(b):find("taskwarrior.nvim Feedback", 1, true) then
+      fb_buf = b
+      break
+    end
+  end
+  if not fb_buf then return end  -- M.open refused (e.g. opt-out); nothing to prefill
+
+  if not last then return end  -- no error to prefill; user gets the empty form
+
+  -- Locate the "## What happened?" header and insert the error message
+  -- two lines below it. Use buf_set_lines so the inserted text is part
+  -- of the buffer history (user can :u it).
+  local lines = vim.api.nvim_buf_get_lines(fb_buf, 0, -1, false)
+  for i, line in ipairs(lines) do
+    if line:match("^## What happened%?") then
+      -- The template has a blank line at i+1 (the cursor lands there
+      -- in M.open). Replace it with the prefill so the user can edit
+      -- in place.
+      local prefill = "Auto-captured ERROR: " .. last.msg
+      vim.api.nvim_buf_set_lines(fb_buf, i, i + 1, false, { prefill })
+      vim.bo[fb_buf].modified = false
+      break
+    end
+  end
+end
+
 -- Test-only export — lets tests/lua/spec/feedback_open_spec.lua exercise
 -- payload construction without spawning a real `task` subprocess. Not
 -- public API; the leading underscore signals "tests may peek".

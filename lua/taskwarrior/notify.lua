@@ -90,6 +90,36 @@ local function resolve(level)
   return nil
 end
 
+-- Hint state — fired at most once per nvim session. The user sees the
+-- pointer to :TaskFeedback once; after that, it's signal-noise.
+local _hint_fired = false
+
+local function hint_enabled()
+  local ok, config = pcall(require, "taskwarrior.config")
+  if not ok then return true end
+  if config.options
+    and config.options.feedback
+    and config.options.feedback.hint_on_error == false then
+    return false
+  end
+  return true
+end
+
+-- Test hook: reset the hint flag so successive specs each get the
+-- "first ERROR" path. Not for production use.
+function M._reset_hint() _hint_fired = false end
+
+local function maybe_append_hint(msg, level)
+  if level ~= vim.log.levels.ERROR then return msg end
+  if _hint_fired then return msg end
+  if not hint_enabled() then return msg end
+  _hint_fired = true
+  -- Append on a new line so the hint reads as a distinct callout, not a
+  -- continuation of the error message itself. Keep it short — users see
+  -- it at most once.
+  return msg .. "\nTip: press <leader>tF or :TaskFeedback last-error to report this."
+end
+
 local function dispatch(cat, msg, level)
   -- Second-arg is the message only when cat is a string category.
   if type(cat) ~= "string" then
@@ -106,14 +136,16 @@ local function dispatch(cat, msg, level)
     if enabled == false then return end
   end
 
-  -- Capture into the ring before emitting. This way even category-silenced
-  -- notifications would still appear in feedback reports if we ever want
-  -- that — but currently we only capture WARN+, which is rarely silenced.
-  -- (Order is: silence-check → ring-capture → emit. Silenced messages do
-  -- not reach the ring, by design.)
+  -- Capture the ORIGINAL message (without hint) into the ring buffer.
+  -- The hint is purely UI ergonomics; we don't want it polluting log
+  -- entries that get sent in bug reports.
   append_to_ring(msg, level)
 
-  vim.notify(msg, level)
+  -- Append the hint to the user-visible message only — and only on the
+  -- first ERROR per session.
+  local out_msg = maybe_append_hint(msg, level)
+
+  vim.notify(out_msg, level)
 end
 
 return setmetatable(M, {

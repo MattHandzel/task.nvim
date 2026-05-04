@@ -189,10 +189,18 @@ function M.setup(main, complete_filter)
     views.tags()
   end, { nargs = 0, desc = "Show tag distribution" })
 
-  -- Structured feedback buffer (opt-in; needs feedback_endpoint in setup)
-  register("Feedback", function()
-    require("taskwarrior.feedback").open()
-  end, { desc = "Send structured feedback about taskwarrior.nvim" })
+  -- Structured feedback buffer. Default config: GitHub-issue + clipboard
+  -- always available; HTTP "Send" only when feedback_endpoint is set.
+  --   :<prefix>Feedback              open the empty form
+  --   :<prefix>Feedback last-error   prefill from the most recent ERROR
+  register("Feedback", function(o)
+    local fb = require("taskwarrior.feedback")
+    if o.args == "last-error" then fb.last_error() else fb.open() end
+  end, {
+    nargs = "?",
+    desc = "Open the feedback form (subcommand: last-error)",
+    complete = function() return { "last-error" } end,
+  })
 
   -- Task-level ops
   register("Append", function(o)

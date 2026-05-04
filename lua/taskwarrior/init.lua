@@ -297,6 +297,18 @@ function M.setup(opts)
     end, vim.tbl_extend("force", gopts, { desc = "taskwarrior.nvim: Register cwd as project" }))
   end
 
+  -- Easy-feedback global keymap (issue #2 → v1.4.1). Default <leader>tF.
+  -- Set feedback_key = false to disable.
+  local feedback_cfg = config.options.feedback or {}
+  local feedback_key = feedback_cfg.feedback_key
+  if feedback_key and feedback_key ~= false and feedback_key ~= "" then
+    vim.keymap.set("n", feedback_key, function()
+      require("taskwarrior.feedback").last_error()
+    end, vim.tbl_extend("force", gopts, {
+      desc = "taskwarrior.nvim: Report a bug (auto-fills last error)"
+    }))
+  end
+
   M._setup_commands()
 
   -- Optional: auto-stop running Taskwarrior timers after N ms idle.
