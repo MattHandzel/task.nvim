@@ -142,8 +142,46 @@ Visualisation commands. See |taskwarrior-views|.
 :TaskProjectList         List all mappings.
 
                                                             *:TaskFeedback*
-:TaskFeedback           Open a structured feedback buffer. Opt-in; needs
-                        `feedback_endpoint` set in |taskwarrior-config|.
+                                                 *:TaskFeedback-last-error*
+                                                       *taskwarrior-feedback*
+:TaskFeedback           Open the structured bug-report form. Default
+:TaskFeedback last-error      config: GitHub-issue and clipboard paths
+                        always available; HTTP "Send" only shown when
+                        `feedback_endpoint` is configured.
+
+                        `last-error` subcommand: pre-fills "What
+                        happened?" with the most-recent ERROR notify
+                        captured by the plugin's ring buffer. Same as
+                        the default `<leader>tF` keymap.
+
+                        Privacy:
+                          * task descriptions never leave your machine —
+                            the optional g? capture (inside :Task
+                            buffers) replaces description alphanumerics
+                            with the literal `a`, preserving structural
+                            tokens (project:, +tag, due:, ...) and
+                            character lengths so layout bugs reproduce
+                          * task counts are bucketed (DP-style ranges
+                            like "101-500"), never the raw integer
+                          * ring buffer captures only WARN/ERROR
+                            notifications routed through the plugin —
+                            other plugins' notifications are not
+                            observed
+                          * $HOME paths scrubbed to ~/...
+                          * nothing auto-sends; every action is an
+                            explicit choice in the post-:w prompt
+
+                        Disable any tier via setup:
+                          feedback = {
+                            capture_log    = false,
+                            hint_on_error  = false,
+                            feedback_key   = false,
+                          }
+
+                        See also: `g?` keymap inside :Task buffers
+                        opens this form prefilled with the active
+                        filter / sort / group plus a sanitized snapshot
+                        of ~50 lines around your cursor.
 
                                                               *:TaskAppend*
                                                              *:TaskPrepend*

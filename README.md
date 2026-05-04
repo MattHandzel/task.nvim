@@ -230,6 +230,7 @@ These are bundled but require their own host plugins.
 | `:TaskTags` | Tag-frequency view |
 | `:TaskProjectAdd [name]` / `:TaskProjectRemove` / `:TaskProjectList` | Auto-project mapping |
 | `:TaskTutor [reset]` | Open the interactive tutorial; `reset` ends an active session and cleans up orphan temp dirs |
+| `:TaskFeedback [last-error]` | Open the structured bug-report form; `last-error` pre-fills with the most recent ERROR captured by the plugin |
 
 ## Keybindings (buffer-local)
 
@@ -368,6 +369,42 @@ The CLI also refuses to `apply` a file with a missing or malformed header unless
 ## Migrating from `task.nvim`?
 
 This plugin was renamed in v1.3.0. Update your lazy.nvim spec from `matthandzel/task.nvim` to `matthandzel/taskwarrior.nvim` and replace `require("task")` with `require("taskwarrior")` in your config. The `:Task*` commands and the `taskmd` filetype are unchanged. Saved views, registered projects, and apply backups migrate automatically the first time the plugin loads.
+
+## Reporting bugs
+
+Hit something weird? The plugin is built so you don't have to copy-paste anything.
+
+| Trigger | What happens |
+|---|---|
+| Plugin emits an `[ERROR]` notify | First ERROR per session has a one-line tip appended: *"press `<leader>tF` or `:TaskFeedback last-error`"*. Once per session — not spam. |
+| `<leader>tF` (default) | Opens `:TaskFeedback` with the most recent ERROR auto-prefilled into "What happened?". |
+| `:TaskFeedback last-error` | Same as `<leader>tF`, no keymap needed. |
+| `:TaskFeedback` | Empty form when you want to file something proactive. |
+| `g?` inside any `:Task` buffer | Prefills "Anything else?" with the active filter / sort / group + a sanitized snapshot of ~50 lines around your cursor. |
+
+After `:w` on the form, you choose: **Open as GitHub issue** (browser opens with everything pre-filled — just hit Submit), **Copy payload to clipboard**, or **Send to endpoint** (only shown if you've configured one). The full JSON payload is shown for review before any send/copy.
+
+### Privacy guarantees
+
+These rules are enforced by tests in `tests/lua/spec/feedback_*_spec.lua`:
+
+- **Task descriptions never leave your machine.** The `g?` capture replaces every alphanumeric in description text with the literal `a` while preserving the structural Taskwarrior tokens (`project:`, `+tag`, `due:`, `priority:`, `<!-- uuid:... -->`). Length is preserved character-for-character so layout bugs reproduce exactly.
+- **Task counts are bucketed.** Reported as a string range like `101-500`, not the raw integer — differential-privacy-style coarsening so an exact count can't be combined with timestamps + OS to fingerprint a user.
+- **The ring buffer captures only WARN/ERROR notifications routed through this plugin.** Other plugins' notifications are never observed.
+- **Path scrubbing.** `$HOME` and similar are normalized to `~/...` before any send.
+- **Nothing auto-sends.** Every action is an explicit choice in the post-`:w` prompt.
+
+Disable any of it via:
+
+```lua
+require("taskwarrior").setup({
+  feedback = {
+    capture_log    = false,    -- no ring buffer of recent notifications
+    hint_on_error  = false,    -- no "Tip: press <leader>tF" suffix on errors
+    feedback_key   = false,    -- no global <leader>tF keymap
+  },
+})
+```
 
 ## Help
 

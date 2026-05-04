@@ -4,7 +4,100 @@ All notable changes to taskwarrior.nvim (formerly `task.nvim`) are documented
 here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [Unreleased] — v1.4.1 (post-launch polish)
+
+Polish release driven by feedback from the v1.4.0 launch (issues #1, #2)
+and the distribution research that flagged the silent-broken-feedback
+default and the tofu-square first-touch UX. Every shipped change has a
+regression test under `tests/lua/spec/`; full Lua suite is now 219
+assertions, all green.
+
+### Added — onboarding
+
+- **`:TaskTutor`** — interactive 5-lesson tutorial covering the
+  Taskwarrior CLI from scratch and graduating users into the plugin's
+  buffer-as-database UX. Fully sandboxed: every `task` command runs
+  against a throwaway DB in `/tmp` with `rc.data.location=` and
+  `rc.hooks=off` flags; the optional `[Tutor shell]` terminal split
+  spawns `bash --norc --noprofile` with `TASKDATA`/`TASKRC` env scoped
+  to the temp dir. Structural isolation invariants enforced by
+  `tests/lua/spec/tutor_isolation_spec.lua` (21 assertions).
+- **`:TaskTutor reset`** — ends an active session and scans `/tmp` for
+  orphan `*_tw_tutor` directories left behind by prior crashes.
+
+### Added — easy feedback flow
+
+- **`:TaskFeedback`** unbricked — works on default install. Pre-fix
+  the form refused to open because `feedback_endpoint` defaulted to
+  `false`. The GitHub-issue and clipboard paths now always work; HTTP
+  "Send" appears only when `feedback_endpoint` is configured.
+- **`:TaskFeedback last-error`** — opens the form prefilled with the
+  most-recent ERROR captured by the plugin's WARN+ ring buffer.
+  Also bound to `<leader>tF` (default-on, opt-out via
+  `setup({ feedback = { feedback_key = false } })`).
+- **First ERROR per session has a Tip suffix appended:** *"press
+  `<leader>tF` or `:TaskFeedback last-error` to report this."* Once
+  per session — not spam.
+- **`g?` inside `:Task` buffers** opens the feedback form prefilled
+  with the active filter / sort / group + a sanitized snapshot of
+  ~50 lines around your cursor.
+- **Privacy guarantees enforced by tests:**
+  - Description content scrambled (alphanumerics → `a`) while
+    structural Taskwarrior tokens (`project:`, `+tag`, `due:`,
+    `priority:`, `<!-- uuid:... -->`) are preserved verbatim. Length
+    preserved character-for-character so layout bugs reproduce.
+  - Task counts bucketed (DP-style ranges like `101-500`), never the
+    raw integer.
+  - Ring buffer captures only WARN/ERROR notifications routed through
+    the plugin — other plugins' notifications are never observed.
+  - `$HOME` paths scrubbed to `~/...`.
+  - Nothing auto-sends; every action is an explicit choice in the
+    post-`:w` prompt.
+
+### Added — configurable command prefix (issue #1)
+
+- **`vim.g.taskwarrior_command_prefix`** (or
+  `setup({ command_prefix = "Tw" })`) renames every `:Task*` command
+  to `:Tw*`. Resolves the conflict with
+  [Shatur/neovim-tasks](https://github.com/Shatur/neovim-tasks) which
+  also registers `:Task`. Default `"Task"` preserves backward
+  compatibility — existing users see no change.
+- **Collision detection.** `setup()` scans for an existing
+  `:<prefix>` and emits one clear WARN that names the override
+  mechanism. No silent override.
+- Lazy.nvim install snippet for users who already have Shatur:
+  ```lua
+  {
+    "matthandzel/taskwarrior.nvim",
+    init = function() vim.g.taskwarrior_command_prefix = "Tw" end,
+    config = function() require("taskwarrior").setup() end,
+  }
+  ```
+
+### Fixed
+
+- **`task` binary missing crash (issue #2).** Pre-fix, opening
+  `:TaskAdd` on a system without Taskwarrior installed raised
+  `E475: Invalid value for argument cmd: 'task' is not executable`
+  from inside `vim.schedule` — surfaced as an unintelligible Lua
+  trace. Now: clear WARN at startup if `task` isn't on PATH, and
+  `taskmd.run()` short-circuits cleanly so subsequent calls return
+  `"", 127` without raising. Both paths covered by
+  `tests/lua/spec/degraded_env_spec.lua`. CLAUDE.md gains a new
+  "Degraded environment — missing or broken hard dependencies" test
+  tier so any new external-binary dep added in the future ships with
+  a parallel degraded-env spec.
+- **Tofu `[ ]` square in non-nerd-font terminals.** `icons = true`
+  default now means *auto-detect* via `vim.g.have_nerd_font` rather
+  than *force-NF*. Without nerd-font, the literal `- [ ]` shows
+  through (matching what the parser expects). Existing users who set
+  `vim.g.have_nerd_font = 1` are unaffected. New escape hatch
+  `icons = "force-nf"` for users whose NF detection is broken.
+- **`demo/render-all.sh` syntax error in the size-check step.**
+  Invalid bash (`for ... in ... 2>/dev/null`) replaced with
+  `shopt -s nullglob`. The render step itself was unaffected.
+
+### Old [Unreleased] section follows
 
 Large feature push closing the gap against ribelo/taskwarrior.nvim,
 huantrinh1802/m_taskwarrior_d.nvim, and duckdm/neowarrior.nvim. See
