@@ -840,17 +840,33 @@ end
 function M.setup_buf_keymaps(bufnr)
   local opts = { buffer = bufnr, noremap = true, silent = true }
 
-  -- g? — open :TaskFeedback prefilled with sanitized buffer context.
-  -- The launch-week ergonomic for "the renderer broke on my data" reports.
-  -- Capture sanitization rules live in lua/taskwarrior/feedback/context.lua.
+  -- g? — open :TaskFeedback prefilled with buffer context. Prompts the
+  -- user to choose: scrambled (default, descriptions hidden), original
+  -- (descriptions visible), or no context. Capture sanitization rules
+  -- live in lua/taskwarrior/feedback/context.lua.
   vim.keymap.set("n", "g?", function()
-    local context  = require("taskwarrior.feedback.context")
     local feedback = require("taskwarrior.feedback")
     local cursor   = vim.api.nvim_win_get_cursor(0)
-    local snap = context.capture(bufnr, cursor[1])
-    feedback.open_with_context(context.format(snap))
+    local choices  = {
+      "Include scrambled buffer context (recommended)",
+      "Include ORIGINAL buffer context (descriptions visible)",
+      "No buffer context",
+    }
+    vim.ui.select(choices, {
+      prompt = "Report a bug — what to include from this buffer?",
+    }, function(choice)
+      if not choice then return end  -- cancel
+      if choice == "No buffer context" then
+        feedback.open()
+        return
+      end
+      local context = require("taskwarrior.feedback.context")
+      local scrub   = (choice ~= "Include ORIGINAL buffer context (descriptions visible)")
+      local snap    = context.capture(bufnr, cursor[1], { scrub = scrub })
+      feedback.open_with_context(context.format(snap))
+    end)
   end, vim.tbl_extend("force", opts, {
-    desc = "taskwarrior.nvim: Report a bug with sanitized buffer context",
+    desc = "taskwarrior.nvim: Report a bug (with buffer context picker)",
   }))
 
   -- Smart j/k: do screen-line movement (gj/gk) for wrapped-line navigation,

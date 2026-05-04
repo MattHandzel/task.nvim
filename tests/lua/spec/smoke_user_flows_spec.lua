@@ -638,15 +638,10 @@ describe("deep: g? in :Task buffers wires correctly", function()
 
   it("firing `g?` for real opens the feedback form with sanitized context", function()
     -- Catches the entire pipeline end-to-end: keymap fires →
+    -- vim.ui.select shows the picker → user picks scrambled →
     -- context.capture runs against a real buffer → context.format
     -- builds a markdown block → feedback.open_with_context inserts
-    -- it. Any breakage in the chain (renamed function, typo'd module,
-    -- broken regex) shows up here.
-    --
-    -- Firing g? requires the buffer to be focused in a real window
-    -- (nvim_buf_call alone runs the cmd in the buffer's context but
-    -- :normal g? executes against the current window's buffer).
-    -- Switch the current window to our task-style buffer first.
+    -- it. Any breakage in the chain shows up here.
     local task_buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(task_buf, 0, -1, false, {
       "## Project Work",
@@ -661,6 +656,14 @@ describe("deep: g? in :Task buffers wires correctly", function()
     -- Move task_buf into the current window and put cursor on line 2.
     vim.api.nvim_win_set_buf(0, task_buf)
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
+
+    -- Stub the new picker prompt to pick "scrambled" (the default).
+    vim.ui.select = function(items, _opts, on_choice)
+      for _, c in ipairs(items) do
+        if c:match("^Include scrambled") then on_choice(c); return end
+      end
+      on_choice(items[1])
+    end
 
     -- Fire g? via :normal — runs the buffer-local keymap.
     local errors = trap_errors(function() vim.cmd("normal g?") end)
@@ -694,6 +697,94 @@ describe("deep: g? in :Task buffers wires correctly", function()
         .. content)
 
     pcall(vim.api.nvim_buf_delete, fb_buf,   { force = true })
+    pcall(vim.api.nvim_buf_delete, task_buf, { force = true })
+  end)
+
+  -- Cover each of the three picker options by firing g? with each
+  -- choice and asserting the form's resulting state.
+  local function setup_task_buf_with_sensitive_data()
+    local task_buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(task_buf, 0, -1, false, {
+      "## Project Work",
+      "- [ ] Sensitive description text project:Work priority:H +urgent",
+    })
+    require("taskwarrior.buffer").setup_buf_keymaps(task_buf)
+    vim.api.nvim_win_set_buf(0, task_buf)
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    return task_buf
+  end
+
+  local function find_feedback_buf()
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_get_name(b):find("Feedback", 1, true) then return b end
+    end
+  end
+
+  local function pick_choice(prefix)
+    vim.ui.select = function(items, _opts, on_choice)
+      for _, c in ipairs(items) do
+        if c:lower():find(prefix:lower(), 1, true) then on_choice(c); return end
+      end
+      on_choice(nil)
+    end
+  end
+
+  it("g? picker: 'scrambled' → form has scrubbed context, no leak", function()
+    local task_buf = setup_task_buf_with_sensitive_data()
+    pick_choice("scrambled")
+    trap_errors(function() vim.cmd("normal g?") end)
+    local fb = find_feedback_buf()
+    assert.is_not_nil(fb, "form did not open after picking scrambled")
+    local content = table.concat(vim.api.nvim_buf_get_lines(fb, 0, -1, false), "\n")
+    assert.is_truthy(content:lower():match("sanitiz")
+                  or content:lower():match("scrambl"),
+      "scrambled context block should advertise sanitization in its header")
+    assert.is_nil(content:find("Sensitive", 1, true),
+      "scrambled mode leaked the original description; got:\n" .. content)
+    pcall(vim.api.nvim_buf_delete, fb,       { force = true })
+    pcall(vim.api.nvim_buf_delete, task_buf, { force = true })
+  end)
+
+  it("g? picker: 'ORIGINAL' → form contains the actual description", function()
+    local task_buf = setup_task_buf_with_sensitive_data()
+    pick_choice("original")
+    trap_errors(function() vim.cmd("normal g?") end)
+    local fb = find_feedback_buf()
+    assert.is_not_nil(fb, "form did not open after picking ORIGINAL")
+    local content = table.concat(vim.api.nvim_buf_get_lines(fb, 0, -1, false), "\n")
+    assert.is_truthy(content:lower():match("original")
+                  or content:lower():match("descriptions visible")
+                  or content:lower():match("review"),
+      "ORIGINAL header should warn the user that descriptions are visible; got:\n"
+        .. content:sub(1, 800))
+    assert.is_truthy(content:find("Sensitive description text", 1, true),
+      "ORIGINAL mode should preserve the actual description; got:\n" .. content)
+    pcall(vim.api.nvim_buf_delete, fb,       { force = true })
+    pcall(vim.api.nvim_buf_delete, task_buf, { force = true })
+  end)
+
+  it("g? picker: 'No buffer context' → form opens with NO buffer block", function()
+    local task_buf = setup_task_buf_with_sensitive_data()
+    pick_choice("no buffer")
+    trap_errors(function() vim.cmd("normal g?") end)
+    local fb = find_feedback_buf()
+    assert.is_not_nil(fb, "form did not open after picking 'No buffer context'")
+    local content = table.concat(vim.api.nvim_buf_get_lines(fb, 0, -1, false), "\n")
+    assert.is_nil(content:find("Buffer context", 1, true),
+      "No-context choice should NOT insert a buffer-context block; got:\n"
+        .. content:sub(1, 800))
+    assert.is_nil(content:find("Sensitive", 1, true),
+      "No-context choice should never include description text")
+    pcall(vim.api.nvim_buf_delete, fb,       { force = true })
+    pcall(vim.api.nvim_buf_delete, task_buf, { force = true })
+  end)
+
+  it("g? picker: nil/cancel → no form opens", function()
+    local task_buf = setup_task_buf_with_sensitive_data()
+    vim.ui.select = function(_items, _opts, on_choice) on_choice(nil) end
+    trap_errors(function() vim.cmd("normal g?") end)
+    assert.is_nil(find_feedback_buf(),
+      "Cancel should not open the feedback form")
     pcall(vim.api.nvim_buf_delete, task_buf, { force = true })
   end)
 end)

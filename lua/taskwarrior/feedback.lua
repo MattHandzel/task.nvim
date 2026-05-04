@@ -612,6 +612,11 @@ end
 -- Open the form with `markdown_block` prefilled into the
 -- "Anything else?" section. Used by the :Task buffer's `g?` shortcut
 -- (lua/taskwarrior/feedback/context.lua does the sanitized capture).
+--
+-- Also prepends a short preamble at the top of the form explaining
+-- what the form is — when a user hits g? without context, the
+-- existing template's first line is "## What happened?" which is
+-- not self-explanatory.
 function M.open_with_context(markdown_block)
   M.open()
 
@@ -624,11 +629,23 @@ function M.open_with_context(markdown_block)
   end
   if not fb_buf then return end
 
+  -- 1. Prepend a preamble above the title line so the user lands on a
+  --    clear "you're filing a bug report" callout. Inserted as a
+  --    quote-block so it visually separates from the user's input.
+  local preamble = {
+    "> **Bug-report form** — opened from `g?` inside a `:Task` buffer.",
+    "> Fill in the sections below, then `:w` to choose how to send",
+    "> (open as a GitHub issue / copy to clipboard / send to endpoint).",
+    "> The buffer-context block is auto-attached under \"Anything else?\";",
+    "> review and edit anything you want to change before submitting.",
+    "",
+  }
+  vim.api.nvim_buf_set_lines(fb_buf, 0, 0, false, preamble)
+
+  -- 2. Insert the context block under the "## Anything else?" header.
   local lines = vim.api.nvim_buf_get_lines(fb_buf, 0, -1, false)
   for i, line in ipairs(lines) do
     if line:match("^## Anything else") then
-      -- Insert the context block on the line directly after the header.
-      -- Split into individual lines to preserve markdown formatting.
       local block_lines = vim.split(markdown_block, "\n", { plain = true })
       vim.api.nvim_buf_set_lines(fb_buf, i, i, false, block_lines)
       vim.bo[fb_buf].modified = false
