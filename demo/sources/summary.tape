@@ -12,7 +12,7 @@ Set FontFamily "JetBrainsMono Nerd Font"
 Set FontSize 16
 Set Width 1200
 Set Height 600
-Set Padding 30
+Set Padding 0
 
 Env TASKRC "/tmp/task-nvim-demo/.taskrc-demo"
 Env TASKDATA "/tmp/task-nvim-demo/.task-demo"
