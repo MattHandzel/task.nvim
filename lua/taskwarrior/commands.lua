@@ -23,8 +23,14 @@ function M.setup(main, complete_filter)
   -- current default — otherwise the WARN would suggest "set prefix to
   -- 'Tw'" to a user whose prefix already IS 'Tw' (no-op).
   local example = (prefix == "TaskW") and "TwX" or "TaskW"
+  -- Skip the collision check if WE registered the bare command via the
+  -- lazy entrypoint in plugin/taskwarrior.lua (which sets the sentinel
+  -- below). Without this guard, every default install fires a false-
+  -- positive "another plugin already registered :Tw!" WARN against our
+  -- own lazy registration that ran ~10ms earlier.
   local existing = vim.api.nvim_get_commands({})
-  if existing[prefix] then
+  local collides = existing[prefix] and vim.g._taskwarrior_lazy_owned_command ~= prefix
+  if collides then
     vim.notify(
       ("taskwarrior.nvim: collision — :%s is already defined by another plugin. "
         .. "If you want both, override our prefix BEFORE the plugin loads:\n"

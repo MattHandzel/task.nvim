@@ -81,6 +81,11 @@ if lazy_prefix:match("^[A-Z][A-Za-z]*$") then
     nargs = "*",
     desc = "Open Taskwarrior tasks as markdown",
   })
+  -- Sentinel: commands.lua's collision detector reads this so it doesn't
+  -- shout "another plugin already registered :<prefix>!" against our own
+  -- lazy registration. Without this, every default install fires a
+  -- false-positive WARN at startup.
+  vim.g._taskwarrior_lazy_owned_command = lazy_prefix
 else
   vim.notify(
     ("taskwarrior.nvim: invalid vim.g.taskwarrior_command_prefix '%s' — "

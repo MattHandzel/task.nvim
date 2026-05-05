@@ -142,7 +142,14 @@ function M.setup()
     pattern = { "*.md", "*.markdown" },
     callback = function(args) M.refresh(args.buf) end,
   })
-  vim.api.nvim_create_user_command("TaskQueryRefresh", function()
+  -- Use the configured command prefix so this command follows the same
+  -- naming convention as the rest of the plugin's commands. Default is
+  -- :TwQueryRefresh; users on `command_prefix = "Task"` get :TaskQueryRefresh.
+  -- (Pre-v1.4.1 this was hardcoded to `:TaskQueryRefresh` and didn't
+  -- follow the prefix flip.)
+  local cfg_ok, cfg = pcall(require, "taskwarrior.config")
+  local qprefix = (cfg_ok and cfg.options.command_prefix) or "Tw"
+  vim.api.nvim_create_user_command(qprefix .. "QueryRefresh", function()
     M.refresh()
   end, { nargs = 0, desc = "Refresh embedded taskmd query blocks in this buffer" })
 end

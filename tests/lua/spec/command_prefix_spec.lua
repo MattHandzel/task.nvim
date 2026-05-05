@@ -201,5 +201,53 @@ describe("command_prefix — issue #1 (configurable command names)", function()
         )
       end
     end)
+
+    it("does NOT warn against the plugin's own lazy registration", function()
+      -- Regression for the v1.4.1-fresh-install bug: plugin/taskwarrior.lua
+      -- registers the bare `:Tw` lazy command BEFORE setup() runs.
+      -- commands.lua's collision detector then sees `:Tw` exists and
+      -- shouts "another plugin already registered :Tw!" against our own
+      -- registration. Sentinel `vim.g._taskwarrior_lazy_owned_command`
+      -- tells commands.lua "I own this; ignore." Without the sentinel
+      -- check, every default install fires a false-positive at startup.
+      vim.api.nvim_create_user_command("Tw", function() end, { nargs = "*" })
+      vim.g._taskwarrior_lazy_owned_command = "Tw"
+
+      local notifications = {}
+      local original_notify = vim.notify
+      vim.notify = function(msg, level, _opts)
+        table.insert(notifications, { msg = tostring(msg), level = level })
+      end
+      require("taskwarrior").setup({})
+      vim.notify = original_notify
+      vim.g._taskwarrior_lazy_owned_command = nil
+
+      for _, n in ipairs(notifications) do
+        assert.is_falsy(
+          n.level == vim.log.levels.WARN and n.msg:match("[Cc]ollision"),
+          "false-positive collision against own lazy registration: " .. n.msg
+        )
+      end
+    end)
+
+    it("DOES warn when a different (foreign) plugin registered :Tw", function()
+      -- Confirms the sentinel doesn't suppress real collisions: when
+      -- :Tw exists but the lazy sentinel is unset (or set to a
+      -- different prefix), we still warn.
+      vim.api.nvim_create_user_command("Tw", function() end, { nargs = "*" })
+      vim.g._taskwarrior_lazy_owned_command = nil  -- sentinel unset = foreign
+
+      local got_warn = false
+      local original_notify = vim.notify
+      vim.notify = function(msg, level, _opts)
+        if level == vim.log.levels.WARN and tostring(msg):match("[Cc]ollision") then
+          got_warn = true
+        end
+      end
+      require("taskwarrior").setup({})
+      vim.notify = original_notify
+
+      assert.is_true(got_warn, "real collision should still warn even with sentinel guard")
+    end)
   end)
 end)
