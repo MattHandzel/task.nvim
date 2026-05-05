@@ -91,3 +91,23 @@ else
 end
 
 _G._taskwarrior_lazy = lazy  -- kept for future use; not publicly documented
+
+-- Auto-generate help tags so `:help taskwarrior` works without the user
+-- having to run `:helptags ALL` themselves. lazy.nvim does this on
+-- install, but users who clone manually, switch branches, or use a
+-- different plugin manager hit `E149: Sorry, no help for taskwarrior`
+-- on first try. Idempotent: only re-runs if doc/taskwarrior.txt is
+-- newer than doc/tags (or tags is missing).
+do
+  local source = debug.getinfo(1, "S").source:sub(2)
+  local doc_dir = vim.fn.fnamemodify(source, ":h:h") .. "/doc"
+  if vim.fn.isdirectory(doc_dir) == 1 then
+    local tags_file = doc_dir .. "/tags"
+    local txt_file  = doc_dir .. "/taskwarrior.txt"
+    local tags_mt = vim.fn.getftime(tags_file)
+    local txt_mt  = vim.fn.getftime(txt_file)
+    if tags_mt == -1 or (txt_mt > 0 and txt_mt > tags_mt) then
+      pcall(vim.cmd, "silent! helptags " .. vim.fn.fnameescape(doc_dir))
+    end
+  end
+end
