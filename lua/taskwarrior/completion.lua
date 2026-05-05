@@ -1,39 +1,10 @@
 local M = {}
 
-local function get_taskmd_path()
-  local config = require("taskwarrior.config")
-  if config.options.taskmd_path then
-    return config.options.taskmd_path
-  end
-  local source = debug.getinfo(1, "S").source:sub(2)
-  local plugin_dir = vim.fn.fnamemodify(source, ":h:h:h")
-  return plugin_dir .. "/bin/taskmd"
-end
-
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  local ok = vim.v.shell_error == 0
-  return out, ok
-end
-
 function M.get_tw_completions()
-  local config = require("taskwarrior.config")
-  if config.options.backend ~= "python" then
-    local ok_m, tm = pcall(require, "taskwarrior.taskmd")
-    if ok_m then
-      local ok_c, data = pcall(tm.tw_completions)
-      if ok_c and type(data) == "table" then return data end
-    end
-    -- fall through to Python fallback on error
-  end
-  local taskmd = get_taskmd_path()
-  local out, ok = run(taskmd .. " completions")
-  if not ok then return { projects = {}, tags = {}, fields = {} } end
-  local parsed_ok, data = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(data) ~= "table" then
-    return { projects = {}, tags = {}, fields = {} }
-  end
-  return data
+  local tm = require("taskwarrior.taskmd")
+  local ok, data = pcall(tm.tw_completions)
+  if ok and type(data) == "table" then return data end
+  return { projects = {}, tags = {}, fields = {} }
 end
 
 function M.complete_filter(arg_lead)

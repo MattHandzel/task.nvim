@@ -46,10 +46,15 @@ describe("taskwarrior.feedback.context — capture sanitized :Task buffer contex
         "- [ ] Call mom",
       })
       -- The capture function reads buffer-local vars set by the renderer
-      -- to know the current filter/sort/group. Stub them.
-      vim.b[buf].taskwarrior_filter = "status:pending"
-      vim.b[buf].taskwarrior_sort   = "urgency-"
-      vim.b[buf].taskwarrior_group  = "project"
+      -- to know the current filter/sort/group. Use the canonical names
+      -- exported by buf_vars (writer in buffer.lua sets the same vars).
+      -- Pre-v1.5 this test used `taskwarrior_*` names and silently passed
+      -- against a reader that also looked up the wrong names — the
+      -- symmetrical bug masked the cross-module drift (bug #4).
+      local buf_vars = require("taskwarrior.buf_vars")
+      vim.b[buf][buf_vars.FILTER] = "status:pending"
+      vim.b[buf][buf_vars.SORT]   = "urgency-"
+      vim.b[buf][buf_vars.GROUP]  = "project"
 
       local snap = context.capture(buf, 2)
       assert.equals("status:pending", snap.filter)

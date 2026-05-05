@@ -287,12 +287,10 @@ local function render_lesson(idx)
   local buf = ensure_lesson_buf()
 
   -- Lesson bodies write `:Task`, `:TaskFeedback`, `:TaskTutor reset` etc.
-  -- as their literal default. Substitute every `:Task` with the configured
-  -- prefix so users running with `command_prefix = "Tw"` (the new v1.4.1
-  -- default) see `:Tw`, `:TwFeedback`, `:TwTutor reset`. Same gsub trick
-  -- as help.lua. No-op when prefix == "Task" (the legacy override).
-  local cfg_prefix = (require("taskwarrior.config").options.command_prefix) or "Task"
-  local function rebrand(line) return (line:gsub(":Task", ":" .. cfg_prefix)) end
+  -- as their literal default. Rebrand to the configured prefix so users
+  -- running with `command_prefix = "Tw"` (the v1.4.1+ default) see the
+  -- right commands. Same helper used by help.lua.
+  local rebrand = require("taskwarrior.prefix").rebrand
 
   -- Build the rendered content: title bar + body + nav line.
   local content = {
@@ -474,62 +472,6 @@ end
 -- differs per session and showing it builds trust — power users can check
 -- exactly where the sandbox lives before agreeing.
 
-local function show_verify_buffer()
-  -- Each entry in this list becomes one buffer line. nvim_buf_set_lines
-  -- rejects any element containing \n (raises "'replacement string' item
-  -- contains newlines"), so we cannot use table.concat with newline
-  -- separators here — every argv element gets its own line.
-  local sample_argv = {
-    "task",
-    "rc.data.location=" .. (vim.fn.tempname() .. TUTOR_DIR_SUFFIX) .. "  (illustrative — created on consent)",
-    "rc.hooks=off",
-    "rc.confirmation=no",
-    "rc.bulk=0",
-    "rc.verbose=nothing",
-    "<verb>",
-    "<args>",
-  }
-  local lines = {
-    "# taskwarrior.nvim — Tutor verification",
-    "",
-    "Every `task` command run by the tutor uses this argv prefix:",
-    "",
-  }
-  for _, a in ipairs(sample_argv) do
-    table.insert(lines, "  " .. a)
-  end
-  for _, l in ipairs({
-    "",
-    "Key isolation flags:",
-    "",
-    "  * rc.data.location=...   makes Taskwarrior use the throwaway DB",
-    "                           in /tmp instead of your ~/.task",
-    "  * rc.hooks=off           your ~/.task/hooks/* will NOT run",
-    "  * rc.confirmation=no     no interactive prompts",
-    "",
-    "The [Tutor shell] terminal split (used in some lessons) gets",
-    "TASKDATA + TASKRC env scoped to the temp dir, with bash spawned",
-    "via `bash --norc --noprofile` so your bashrc cannot override.",
-    "",
-    "The structural guarantees are tested in",
-    "tests/lua/spec/tutor_isolation_spec.lua — see the spec for the",
-    "exact invariants.",
-    "",
-    "Press q or :bd to close this window, then re-run :TaskTutor.",
-  }) do table.insert(lines, l) end
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.bo[buf].buftype   = "nofile"
-  vim.bo[buf].modifiable = false
-  vim.bo[buf].filetype  = "markdown"
-  vim.cmd("tab split")
-  vim.api.nvim_win_set_buf(0, buf)
-  -- :bw (wipe) rather than :bd (unload) — the verify buffer is ephemeral
-  -- and shouldn't accumulate in :ls across multiple invocations.
-  vim.keymap.set("n", "q", "<cmd>bw<cr>",
-    { buffer = buf, nowait = true, silent = true, noremap = true })
-end
-
 function M.start()
   if _session then
     vim.ui.select(
@@ -547,29 +489,23 @@ function M.start()
     return
   end
 
-  -- Compute the path we WOULD use, just for the consent message. It's
-  -- fine if this differs slightly from the actual tmp_dir — vim.fn.tempname()
-  -- is monotonic-ish. The user gets the right shape.
-  local preview_path = vim.fn.tempname() .. TUTOR_DIR_SUFFIX
-  -- Clean up the empty file vim.fn.tempname() may have created.
-  pcall(vim.fn.delete, preview_path:gsub(TUTOR_DIR_SUFFIX, ""))
+  -- Single-line prompt — many pickers (telescope, fzf-lua, …) render
+  -- the prompt as the title bar and truncate at the window width.
+  -- Embedding the sandbox details and tempname in the prompt produced
+  -- "Start the interactive Taskwarrior tutorial? Sandbox: a throwaway DB will be…"
+  -- with the rest cut off. The sandbox claim moves to vim.notify
+  -- *before* the picker so the user sees it in their messages log.
+  vim.notify(
+    "taskwarrior.nvim: tutor uses a throwaway DB under /tmp; your real ~/.task is not touched.",
+    vim.log.levels.INFO
+  )
 
   vim.ui.select(
-    {
-      "Start the tutor",
-      "Show me the exact `task` commands first",
-      "Cancel",
-    },
-    {
-      prompt = "Start the interactive Taskwarrior tutorial?\n"
-            .. "Sandbox: a throwaway DB will be created near " .. preview_path .. "\n"
-            .. "Your real ~/.task and ~/.taskrc will NOT be touched."
-    },
+    { "Start the tutor", "Cancel" },
+    { prompt = "Start the Taskwarrior tutorial?" },
     function(choice)
       if choice == "Start the tutor" then
         M._begin_session()
-      elseif choice == "Show me the exact `task` commands first" then
-        show_verify_buffer()
       end
       -- Cancel / nil → no-op
     end

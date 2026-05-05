@@ -456,4 +456,87 @@ describe("compute_diff — mixed scenario", function()
     assert.is_true(modify_found, "modify for UUID1 not found")
   end)
 
+  -- ── action shape contract (bug #2) ──────────────────────────────────────
+  -- Every action emitted from compute_diff must carry a `description`
+  -- field so the apply.lua confirm dialog can show "what task is this".
+  -- Pre-v1.5 the state-only actions (done/start/stop/modify-priority)
+  -- omitted the description and rendered as `v Done: ""` — ambiguous.
+  describe("action shape contract — every action has a description", function()
+    local function make_base(desc, extras)
+      local t = { uuid = UUID1, description = desc, status = "pending" }
+      for k, v in pairs(extras or {}) do t[k] = v end
+      return t
+    end
+
+    it("done action (checkbox toggle) carries description", function()
+      local lines = {
+        { description = "Pay rent", status = "completed", _short_uuid = "ab05fb51" },
+      }
+      local base = { make_base("Pay rent") }
+      local actions = M.compute_diff(lines, base, {})
+      assert.is_true(#actions >= 1)
+      for _, a in ipairs(actions) do
+        assert.is_truthy(a.description and a.description ~= "",
+          "action of type " .. a.type .. " has empty description")
+      end
+    end)
+
+    it("start action carries description", function()
+      local lines = {
+        { description = "Pay rent", status = "pending", _short_uuid = "ab05fb51", _started = true },
+      }
+      local base = { make_base("Pay rent") }
+      local actions = M.compute_diff(lines, base, {})
+      for _, a in ipairs(actions) do
+        if a.type == "start" then
+          assert.equals("Pay rent", a.description)
+        end
+      end
+    end)
+
+    it("stop action carries description", function()
+      local lines = {
+        { description = "Pay rent", status = "pending", _short_uuid = "ab05fb51", _started = false },
+      }
+      local base = { make_base("Pay rent", { start = "20260101T000000Z" }) }
+      local actions = M.compute_diff(lines, base, {})
+      local stop_seen = false
+      for _, a in ipairs(actions) do
+        if a.type == "stop" then
+          stop_seen = true
+          assert.equals("Pay rent", a.description)
+        end
+      end
+      assert.is_true(stop_seen, "expected stop action")
+    end)
+
+    it("modify-priority-only action carries description", function()
+      local lines = {
+        { description = "Pay rent", status = "pending", _short_uuid = "ab05fb51", priority = "M" },
+      }
+      local base = { make_base("Pay rent", { priority = "L" }) }
+      local actions = M.compute_diff(lines, base, {})
+      assert.is_true(#actions >= 1)
+      for _, a in ipairs(actions) do
+        if a.type == "modify" then
+          assert.equals("Pay rent", a.description)
+          assert.equals("M", a.fields.priority)
+        end
+      end
+    end)
+
+    it("modify-status (uncomplete) carries description", function()
+      local lines = {
+        { description = "Pay rent", status = "pending", _short_uuid = "ab05fb51" },
+      }
+      local base = { make_base("Pay rent", { status = "completed" }) }
+      local actions = M.compute_diff(lines, base, {})
+      for _, a in ipairs(actions) do
+        if a.type == "modify" and a.fields and a.fields.status == "pending" then
+          assert.equals("Pay rent", a.description)
+        end
+      end
+    end)
+  end)
+
 end)

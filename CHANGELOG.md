@@ -4,7 +4,39 @@ All notable changes to taskwarrior.nvim (formerly `task.nvim`) are documented
 here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] — v1.4.1 (post-launch polish)
+## [Unreleased] — v1.5.0
+
+### Removed — Python backend
+
+- `bin/taskmd` (the optional Python CLI) — removed. Taskwarrior.nvim has
+  shipped a pure-Lua backend as the default since v1.1; the Python copy
+  was kept as a fallback and as a standalone CLI for shell pipelines.
+  Maintaining two near-identical implementations was a continuous source
+  of drift bugs (e.g. the v1.4.1 missing-binary cascade where the Lua
+  Layer-B check correctly short-circuited but the Python fallback ran
+  `task` again and surfaced `[Errno 2]`). All edge-case parser tests
+  from the pytest suite (unicode, CRLF, 100K-char descriptions, malformed
+  lines, tag/UUID variants, multiple-token-same-key) were ported to
+  `tests/lua/spec/parse_spec.lua` before deletion.
+- `backend = "python"` config option — removed (silently ignored if set).
+- `taskmd_path` config option — removed.
+- `tests/test_taskmd.py`, `tests/test_taskmd_extended.py` — removed.
+  CI loses the pytest job; coverage is now ~380+ Lua assertions plus the
+  e2e harness driving real `task`.
+- `:checkhealth taskwarrior` no longer reports Python availability or a
+  `taskmd CLI at …` line — those checks are gone.
+- README "CLI usage" section dropped; `:help taskwarrior-cli` removed.
+
+If you were running `taskmd` from a shell pipeline, the equivalent today
+is `nvim --headless -u <minimal_init> -c 'lua print(require("taskwarrior.taskmd").render({...}))' -c 'qa!'`.
+
+### Fixed
+
+- Healthcheck no longer reports `Taskwarrior data at ~/.task` when the
+  `task` binary is missing (the fallback display was misleading; the
+  block is now gated on `vim.fn.executable("task") == 1`).
+
+## v1.4.1 (post-launch polish)
 
 Polish release driven by feedback from the v1.4.0 launch (issues #1, #2)
 and the distribution research that flagged the silent-broken-feedback

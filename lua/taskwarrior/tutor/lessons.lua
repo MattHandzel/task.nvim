@@ -36,7 +36,7 @@ M.lessons = {
     body = {
       "# Welcome",
       "",
-      "This is a 5-lesson interactive tutorial for Taskwarrior — the",
+      "This is an interactive tutorial for Taskwarrior — the",
       "command-line task manager — and the taskwarrior.nvim plugin that",
       "lets you edit your tasks like an oil.nvim buffer.",
       "",
@@ -75,7 +75,7 @@ M.lessons = {
     id = "install_taskwarrior",
     title = "Install Taskwarrior",
     skippable = true,
-    skip_if = function() return vim.fn.executable("task") == 1 end,
+    skip_if = function() return require("taskwarrior.runtime").is_task_available() end,
     body = {
       "# Install Taskwarrior",
       "",
@@ -101,7 +101,7 @@ M.lessons = {
       "Press <CR> when `task --version` works in your shell.",
     },
     validate = function(_api)
-      return vim.fn.executable("task") == 1
+      return require("taskwarrior.runtime").is_task_available()
     end,
     hint = "We still don't see `task` on PATH. Open a shell, run `task --version`, then come back.",
   },

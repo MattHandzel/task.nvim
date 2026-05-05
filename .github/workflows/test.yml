@@ -6,36 +6,6 @@ on:
   pull_request:
 
 jobs:
-  pytest:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ["3.8", "3.10", "3.12"]
-        exclude:
-          # macOS runners no longer ship with 3.8; stick to 3.10+ there.
-          - os: macos-latest
-            python-version: "3.8"
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install taskwarrior (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y taskwarrior
-          task --version
-      - name: Install taskwarrior (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install task
-          task --version
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - run: pip install pytest
-      - run: python3 -m pytest tests/ -v
-
   lua-load:
     runs-on: ubuntu-latest
     steps:
@@ -102,8 +72,3 @@ jobs:
           unzip -o /tmp/stylua.zip -d /tmp
           sudo install /tmp/stylua /usr/local/bin/stylua
       - run: stylua --check lua/ plugin/ ftplugin/ || true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install ruff
-      - run: ruff check bin/taskmd tests/ || true

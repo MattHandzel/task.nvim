@@ -26,5 +26,4 @@ maintainer propose an API. -->
 - [ ] Fits the "edit tasks as markdown" core loop
 - [ ] Read-only visualisation / view
 - [ ] Ecosystem integration (telescope / cmp / statusline / other)
-- [ ] CLI (`bin/taskmd`) feature
 - [ ] Something else — please explain

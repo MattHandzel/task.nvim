@@ -91,20 +91,11 @@ describe("smoke: user-facing flows do not crash", function()
         "errors when starting tutor session: " .. vim.inspect(errors))
     end)
 
-    it("'Show me the exact `task` commands first' renders the verify buffer", function()
-      -- THIS is the regression for the v1.4.1 ship-time bug:
-      -- nvim_buf_set_lines rejected an element containing embedded \n
-      -- because show_verify_buffer used table.concat with "\n  ".
-      vim.ui.select = function(_items, _opts, on_choice)
-        on_choice("Show me the exact `task` commands first")
-      end
-      local errors = trap_errors(function()
-        require("taskwarrior.tutor").start()
-      end)
-      assert.equals(0, #errors,
-        "errors when opening verify buffer (regression for v1.4.1 ship-time bug): "
-          .. vim.inspect(errors))
-    end)
+    -- 'Show me the exact `task` commands first' was removed in v1.5
+    -- (its prompt-line was the worst offender for picker truncation
+    -- and the option was never used by typical first-run users).
+    -- The prior regression test against the v1.4.1 verify-buffer
+    -- newline bug is no longer applicable.
 
     it("'Cancel' selection is a clean no-op", function()
       vim.ui.select = function(_items, _opts, on_choice)
@@ -334,71 +325,11 @@ describe("deep: tutor flows", function()
     assert.is_nil(tutor._get_session(), "_quit should null out the session")
   end)
 
-  it("`q` on the verify buffer wipes it cleanly", function()
-    -- Pairs with the rendering test below — the verify buffer is
-    -- ephemeral; users dismiss with q. If the keymap stops working,
-    -- this catches it.
-    --
-    -- Note on firing `q`: nvim_buf_call opens a hidden autocmd window
-    -- and Vim refuses to :bdelete from inside one ("E813: Cannot close
-    -- autocmd window"). Switch to the verify buffer's real window
-    -- instead.
-    vim.ui.select = function(_items, _opts, on_choice)
-      on_choice("Show me the exact `task` commands first")
-    end
-    require("taskwarrior.tutor").start()
-    local verify_buf
-    for _, b in ipairs(vim.api.nvim_list_bufs()) do
-      local lines = vim.api.nvim_buf_get_lines(b, 0, 5, false)
-      if lines[1] and lines[1]:match("Tutor verification") then
-        verify_buf = b; break
-      end
-    end
-    assert.is_not_nil(verify_buf)
-    local wins = vim.fn.win_findbuf(verify_buf)
-    assert.is_truthy(#wins > 0, "verify buffer was not displayed in any window")
-    vim.api.nvim_set_current_win(wins[1])
-    vim.cmd("normal q")
-    -- Keymap uses `<cmd>bw<cr>` (wipe, not just unload), so the buffer
-    -- should be fully invalid afterward — no stray entry in :ls.
-    assert.is_false(vim.api.nvim_buf_is_valid(verify_buf),
-      "q on verify buffer did not wipe it (left a phantom in :ls)")
-  end)
-
-  it("verify buffer (Show me the exact `task` commands first) renders argv lines", function()
-    -- Direct regression for the v1.4.1 ship-time bug that the user hit.
-    -- After the fix, the buffer should render with each argv element
-    -- as its own line (no embedded \n).
-    vim.ui.select = function(_items, _opts, on_choice)
-      on_choice("Show me the exact `task` commands first")
-    end
-    require("taskwarrior.tutor").start()
-    local verify_buf
-    for _, b in ipairs(vim.api.nvim_list_bufs()) do
-      local name = vim.api.nvim_buf_get_name(b)
-      if name == "" then
-        local lines = vim.api.nvim_buf_get_lines(b, 0, 5, false)
-        if lines[1] and lines[1]:match("Tutor verification") then
-          verify_buf = b; break
-        end
-      end
-    end
-    assert.is_not_nil(verify_buf,
-      "verify buffer not found after selecting 'Show me the exact `task` commands first'")
-    local content = vim.api.nvim_buf_get_lines(verify_buf, 0, -1, false)
-    -- Each argv element must be on its own line. Find the line that
-    -- starts the argv block ("  task") and check the next 7 lines are
-    -- the per-flag rows.
-    local found_task, found_data_loc, found_hooks = false, false, false
-    for _, l in ipairs(content) do
-      if l:match("^  task$")             then found_task     = true end
-      if l:match("rc%.data%.location=")  then found_data_loc = true end
-      if l == "  rc.hooks=off"           then found_hooks    = true end
-    end
-    assert.is_true(found_task,     "verify buffer missing standalone 'task' line")
-    assert.is_true(found_data_loc, "verify buffer missing rc.data.location line")
-    assert.is_true(found_hooks,    "verify buffer missing rc.hooks=off line")
-  end)
+  -- The 'Show me the exact `task` commands first' picker option and
+  -- the verify-buffer it opened were removed in v1.5 (the prompt's
+  -- multi-line copy was the worst-truncated by picker frontends, and
+  -- the option was virtually never used). Tests for that flow have
+  -- been deleted.
 end)
 
 describe("deep: feedback flows", function()
@@ -648,9 +579,12 @@ describe("deep: g? in :Task buffers wires correctly", function()
       "- [ ] Sensitive description text project:Work priority:H +urgent",
       "- [ ] Pay rent due:2026-04-01 +bills",
     })
-    vim.b[task_buf].taskwarrior_filter = "status:pending"
-    vim.b[task_buf].taskwarrior_sort   = "urgency-"
-    vim.b[task_buf].taskwarrior_group  = "project"
+    -- Use the canonical buffer-var names exported by buf_vars (writer in
+    -- buffer.lua sets these same vars on real :Tw buffers).
+    local buf_vars = require("taskwarrior.buf_vars")
+    vim.b[task_buf][buf_vars.FILTER] = "status:pending"
+    vim.b[task_buf][buf_vars.SORT]   = "urgency-"
+    vim.b[task_buf][buf_vars.GROUP]  = "project"
     require("taskwarrior.buffer").setup_buf_keymaps(task_buf)
 
     -- Move task_buf into the current window and put cursor on line 2.

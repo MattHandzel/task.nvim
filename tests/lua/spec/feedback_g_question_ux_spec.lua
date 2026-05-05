@@ -145,4 +145,47 @@ describe("feedback.open_with_context — form preamble", function()
       "form should have a preamble explaining what it is when opened via g?; got:\n"
         .. content:sub(1, 600))
   end)
+
+  -- Bug #8 (v1.5 QA): the static template said "does NOT include task
+  -- descriptions" while ORIGINAL mode included them. The two messages
+  -- contradicted each other on the same screen. Mode-aware disclaimer
+  -- swap is now wired to opts.scrubbed in open_with_context.
+
+  it("scrubbed mode keeps the default 'does NOT include task descriptions' disclaimer", function()
+    feedback.open_with_context("sanitized block", { scrubbed = true })
+    local buf
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_get_name(b):find("Feedback", 1, true) then
+        buf = b; break
+      end
+    end
+    local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+    -- The "does NOT" claim appears on one line; the rest ("include
+    -- task descriptions, …") is wrapped onto the next line. Match the
+    -- short anchor that's stable across line wraps.
+    assert.is_truthy(content:find("does NOT", 1, true),
+      "scrubbed mode must keep the default privacy claim; got:\n" .. content:sub(1, 600))
+    assert.is_nil(content:find("ORIGINAL MODE", 1, true),
+      "scrubbed mode must NOT show the ORIGINAL-mode warning")
+  end)
+
+  it("ORIGINAL mode replaces the privacy claim with a redaction warning", function()
+    feedback.open_with_context("ORIGINAL block with `Real description`", { scrubbed = false })
+    local buf
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_get_name(b):find("Feedback", 1, true) then
+        buf = b; break
+      end
+    end
+    local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+    -- The static "does NOT" claim must be GONE because the buffer below
+    -- DOES include real descriptions — the two would contradict each
+    -- other on screen.
+    assert.is_nil(content:find("does NOT", 1, true),
+      "ORIGINAL mode must remove the static 'does NOT' privacy claim")
+    -- A mode-specific warning must be visible instead.
+    assert.is_truthy(content:find("ORIGINAL MODE", 1, true)
+                  or content:find("Review and redact", 1, true),
+      "ORIGINAL mode must surface a redaction warning; got:\n" .. content:sub(1, 600))
+  end)
 end)

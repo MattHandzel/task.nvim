@@ -1,18 +1,8 @@
 local M = {}
 
 -- ---------------------------------------------------------------------------
--- Shared utilities (same as init.lua copies — no circular dep)
+-- Shared utilities
 -- ---------------------------------------------------------------------------
-
-local function get_taskmd_path()
-  local config = require("taskwarrior.config")
-  if config.options.taskmd_path then
-    return config.options.taskmd_path
-  end
-  local source = debug.getinfo(1, "S").source:sub(2)
-  local plugin_dir = vim.fn.fnamemodify(source, ":h:h:h")
-  return plugin_dir .. "/bin/taskmd"
-end
 
 local function run(cmd)
   local out = vim.fn.system(cmd)
@@ -87,51 +77,26 @@ end
 local function render(filter, sort, group)
   local config = require("taskwarrior.config")
 
-  -- Try the Lua backend first unless the user explicitly asked for python.
-  if config.options.backend ~= "python" then
-    local ok_m, tm = pcall(require, "taskwarrior.taskmd")
-    if ok_m then
-      local filter_args = {}
-      if filter and filter ~= "" then
-        for w in filter:gmatch("%S+") do table.insert(filter_args, w) end
-      end
-      local ok_r, result = pcall(tm.render, {
-        filter = filter_args,
-        sort = sort or config.options.sort or "urgency-",
-        group = (group ~= "" and group) or nil,
-        fields = config.options.fields,
-        urgency_coefficients = config.options.urgency_coefficients,
-        urgency_value_mappers = config.options.urgency_value_mappers,
-      })
-      if ok_r and type(result) == "string" then
-        return result
-      end
-      vim.notify("taskwarrior.nvim: Lua backend render failed (" .. tostring(result) .. "); falling back to Python",
-        vim.log.levels.WARN)
-    end
-  end
-
-  local taskmd = get_taskmd_path()
-  local cmd = { taskmd, "render" }
+  local filter_args = {}
   if filter and filter ~= "" then
-    for word in filter:gmatch("%S+") do
-      table.insert(cmd, word)
-    end
-  end
-  table.insert(cmd, "--sort=" .. (sort or config.options.sort or "urgency-"))
-  if group and group ~= "" then
-    table.insert(cmd, "--group=" .. group)
-  end
-  if config.options.fields then
-    table.insert(cmd, "--fields=" .. config.options.fields)
+    for w in filter:gmatch("%S+") do table.insert(filter_args, w) end
   end
 
-  local out, ok = run(table.concat(cmd, " "))
-  if not ok then
-    vim.notify("taskwarrior.nvim: render failed\n" .. out, vim.log.levels.ERROR)
-    return nil
+  local tm = require("taskwarrior.taskmd")
+  local ok, result = pcall(tm.render, {
+    filter = filter_args,
+    sort = sort or config.options.sort or "urgency-",
+    group = (group ~= "" and group) or nil,
+    fields = config.options.fields,
+    urgency_coefficients = config.options.urgency_coefficients,
+    urgency_value_mappers = config.options.urgency_value_mappers,
+  })
+  if ok and type(result) == "string" then
+    return result
   end
-  return out
+
+  vim.notify("taskwarrior.nvim: render failed — " .. tostring(result), vim.log.levels.ERROR)
+  return nil
 end
 
 M.render = render
@@ -863,7 +828,7 @@ function M.setup_buf_keymaps(bufnr)
       local context = require("taskwarrior.feedback.context")
       local scrub   = (choice ~= "Include ORIGINAL buffer context (descriptions visible)")
       local snap    = context.capture(bufnr, cursor[1], { scrub = scrub })
-      feedback.open_with_context(context.format(snap))
+      feedback.open_with_context(context.format(snap), { scrubbed = snap.scrubbed })
     end)
   end, vim.tbl_extend("force", opts, {
     desc = "taskwarrior.nvim: Report a bug (with buffer context picker)",

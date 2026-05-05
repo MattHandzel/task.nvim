@@ -43,14 +43,13 @@ describe("taskwarrior.config", function()
     it("populates M.options with defaults when called with nil", function()
       config.setup(nil)
       assert.is_not_nil(config.options)
-      assert.equals(config.defaults.backend, config.options.backend)
+      assert.equals(config.defaults.on_delete, config.options.on_delete)
     end)
 
     it("populates M.options with defaults when called with empty table", function()
       config.setup({})
       assert.equals(config.defaults.on_delete, config.options.on_delete)
       assert.equals(config.defaults.sort,      config.options.sort)
-      assert.equals(config.defaults.backend,   config.options.backend)
       assert.equals(config.defaults.confirm,   config.options.confirm)
     end)
   end)
@@ -80,10 +79,6 @@ describe("taskwarrior.config", function()
 
     it("fields defaults to nil", function()
       assert.is_nil(config.options.fields)
-    end)
-
-    it("backend defaults to 'lua'", function()
-      assert.equals("lua", config.options.backend)
     end)
 
     it("icons defaults to true", function()
@@ -125,15 +120,11 @@ describe("taskwarrior.config", function()
       assert.equals("project+", config.options.sort)
     end)
 
-    it("honors backend override", function()
-      config.setup({ backend = "python" })
-      assert.equals("python", config.options.backend)
-    end)
-
     it("preserves unmentioned defaults after override", function()
       config.setup({ sort = "project+" })
-      assert.equals("done", config.options.on_delete)
-      assert.equals("lua",  config.options.backend)
+      assert.equals("project+", config.options.sort)  -- override applied
+      assert.equals("done", config.options.on_delete) -- default preserved
+      assert.equals(true,   config.options.confirm)   -- default preserved
     end)
   end)
 

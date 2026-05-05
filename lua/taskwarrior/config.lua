@@ -20,8 +20,6 @@ M.defaults = {
 	sort = "urgency-", -- default sort
 	group = nil, -- default group field (nil to disable)
 	fields = nil, -- fields to show (nil = all)
-	taskmd_path = nil, -- path to taskmd binary (auto-detected if nil)
-	backend = "lua", -- "lua" (pure-Lua, no python dep) or "python" (bin/taskmd subprocess)
 	capture_key = "<leader>ta", -- global keybind for quick capture (nil to disable)
 	open_key = "<leader>tt", -- global keybind to open task buffer (nil to disable)
 	filter_key = "<leader>tf", -- buffer-local keybind to change filter (nil to disable)

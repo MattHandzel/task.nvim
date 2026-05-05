@@ -11,7 +11,7 @@ M.check = function()
   end
 
   -- Taskwarrior
-  if vim.fn.executable("task") == 1 then
+  if require("taskwarrior.runtime").is_task_available() then
     local tw_version = vim.fn.system("task --version"):gsub("%s+$", "")
     local major = tonumber(tw_version:match("^(%d+)"))
     if major and major >= 2 then
@@ -23,43 +23,22 @@ M.check = function()
     vim.health.error("Taskwarrior not found", "Install: https://taskwarrior.org")
   end
 
-  -- Python 3 (optional — only required for bin/taskmd CLI and live diff preview)
-  if vim.fn.executable("python3") == 1 then
-    local py_version = vim.fn.system("python3 --version"):gsub("%s+$", "")
-    vim.health.ok(py_version .. " (optional — used by bin/taskmd CLI)")
-  else
-    vim.health.warn(
-      "Python 3 not found",
-      "Optional. Required only for the bin/taskmd CLI and live diff-preview virtual text. The default render/save path is pure Lua."
-    )
-  end
-
-  -- taskmd binary
-  local ok_require, task_mod = pcall(require, "taskwarrior")
-  if ok_require and task_mod.get_taskmd_path then
-    local taskmd_path = task_mod.get_taskmd_path()
-    if taskmd_path and vim.fn.filereadable(taskmd_path) == 1 then
-      vim.health.ok("taskmd CLI at " .. taskmd_path)
+  -- Task data directory. Skip when `task` is missing — `task _get` would
+  -- silently shell-fail and we'd report a bogus default path.
+  if require("taskwarrior.runtime").is_task_available() then
+    local taskdata = vim.fn.system("task _get rc.data.location"):gsub("%s+$", "")
+    if taskdata ~= "" and vim.fn.isdirectory(taskdata) == 1 then
+      vim.health.ok("Taskwarrior data at " .. taskdata)
     else
-      vim.health.info("taskmd CLI not on PATH (optional — pure-Lua backend is the default)")
-    end
-  else
-    vim.health.info("Could not check taskmd path (plugin not loaded)")
-  end
-
-  -- Task data directory
-  local taskdata = vim.fn.system("task _get rc.data.location"):gsub("%s+$", "")
-  if taskdata ~= "" and vim.fn.isdirectory(taskdata) == 1 then
-    vim.health.ok("Taskwarrior data at " .. taskdata)
-  else
-    local default = vim.fn.expand("~/.task")
-    if vim.fn.isdirectory(default) == 1 then
-      vim.health.ok("Taskwarrior data at " .. default)
-    else
-      vim.health.warn(
-        "Taskwarrior data directory not found",
-        "Run `task add 'first task'` once to initialize ~/.task."
-      )
+      local default = vim.fn.expand("~/.task")
+      if vim.fn.isdirectory(default) == 1 then
+        vim.health.ok("Taskwarrior data at " .. default)
+      else
+        vim.health.warn(
+          "Taskwarrior data directory not found",
+          "Run `task add 'first task'` once to initialize ~/.task."
+        )
+      end
     end
   end
 
@@ -68,7 +47,8 @@ M.check = function()
   if vim.fn.isdirectory(plugin_data) == 1 then
     vim.health.ok("Plugin data at " .. plugin_data)
   else
-    vim.health.info("Plugin data dir not yet created (will appear on first :TaskSave or apply)")
+    local rebrand = require("taskwarrior.prefix").rebrand
+    vim.health.info(rebrand("Plugin data dir not yet created (will appear on first :TaskSave or apply)"))
   end
 end
 

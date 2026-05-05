@@ -14,7 +14,8 @@
 -- header + form preamble make that mode obvious so they know what
 -- they're sharing before they submit.
 
-local privacy = require("taskwarrior.feedback.privacy")
+local privacy  = require("taskwarrior.feedback.privacy")
+local buf_vars = require("taskwarrior.buf_vars")
 
 local M = {}
 
@@ -25,9 +26,9 @@ local M = {}
 -- view can pass opts.radius explicitly.
 local DEFAULT_RADIUS = 8
 
-local function bvar(buf, name)
-  local ok, val = pcall(function() return vim.b[buf][name] end)
-  if not ok or val == nil or val == "" then return "<unknown>" end
+local function bvar(buf, var_name)
+  local val = buf_vars.get(buf, var_name)
+  if val == nil or val == "" then return "<unknown>" end
   return tostring(val)
 end
 
@@ -56,9 +57,9 @@ function M.capture(buf, cursor_lnum, opts)
   end
 
   return {
-    filter      = bvar(buf, "taskwarrior_filter"),
-    sort        = bvar(buf, "taskwarrior_sort"),
-    group       = bvar(buf, "taskwarrior_group"),
+    filter      = bvar(buf, buf_vars.FILTER),
+    sort        = bvar(buf, buf_vars.SORT),
+    group       = bvar(buf, buf_vars.GROUP),
     cursor_lnum = cursor_lnum,
     line_range  = { lo, hi },
     lines       = lines,

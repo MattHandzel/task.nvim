@@ -1,15 +1,5 @@
 local M = {}
 
-local function get_taskmd_path()
-  local config = require("taskwarrior.config")
-  if config.options.taskmd_path then
-    return config.options.taskmd_path
-  end
-  local source = debug.getinfo(1, "S").source:sub(2)
-  local plugin_dir = vim.fn.fnamemodify(source, ":h:h:h")
-  return plugin_dir .. "/bin/taskmd"
-end
-
 local function run(cmd)
   local out = vim.fn.system(cmd)
   local ok = vim.v.shell_error == 0
@@ -39,8 +29,6 @@ end
 function M._do_apply(bufnr, tmpfile, on_delete, opts)
   require("taskwarrior.apply").do_apply_and_refresh(bufnr, tmpfile, on_delete, refresh_buf, opts)
 end
-
-M.get_taskmd_path = get_taskmd_path
 
 function M.open(filter_str)
   ensure_setup()

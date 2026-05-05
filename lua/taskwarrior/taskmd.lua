@@ -1,10 +1,9 @@
--- taskmd.lua — pure-Lua port of the bin/taskmd Python CLI.
+-- taskmd.lua — the markdown↔Taskwarrior bridge in pure Lua.
 --
--- This module implements the markdown↔Taskwarrior bridge in Lua, so the
--- neovim plugin can operate with no Python dependency. It is a line-for-line
--- port of bin/taskmd so behavior matches the Python tests.
+-- This module is the only backend. It started as a port of an earlier Python
+-- CLI (bin/taskmd, removed in v1.5) and has been the default since v1.1.
 --
--- Public API (mirrors the Python module):
+-- Public API:
 --   M.tw_date_to_human(val)           M.human_date_to_tw(val)
 --   M.format_effort(val)              M.parse_effort(val)
 --   M.parse_task_line(line, extra)    M.serialize_task_line(task, opts)
@@ -176,25 +175,14 @@ M.DEFAULT_URGENCY_VALUE_MAPPERS.effort = M.effort_to_minutes
 -- Without this guard, vim.fn.system({"task",...}) raises E475 from
 -- inside vim.schedule and surfaces to the user as a Lua trace.
 --
--- Cached after the first miss to avoid spamming the notify on every
--- subsequent call. Reset implicitly on plugin reload (the module is
--- re-required, the upvalues are re-initialized).
-local _task_missing_notified = false
+-- WARN throttling and the executable check live in
+-- lua/taskwarrior/runtime.lua so every code path that spawns `task`
+-- shares one cached check + one notification policy.
 local function run(argv)
   if not vim or not vim.fn then
     error("taskmd.lua requires the vim global (must run inside neovim)")
   end
-  if vim.fn.executable("task") ~= 1 then
-    if not _task_missing_notified then
-      _task_missing_notified = true
-      vim.notify(
-        "taskwarrior.nvim: `task` not found on PATH. "
-          .. "Install Taskwarrior (https://taskwarrior.org/install/) and run "
-          .. ":checkhealth taskwarrior to verify. "
-          .. "Plugin commands will no-op until the binary is available.",
-        vim.log.levels.WARN
-      )
-    end
+  if not require("taskwarrior.runtime").ensure_available() then
     return "", 127
   end
   local out = vim.fn.system(argv)
@@ -825,6 +813,13 @@ function M.compute_diff(parsed_lines, base_tasks, opts)
 
       local local_actions = {}
 
+      -- Description for confirm-dialog labels. Pulled from the BASE record
+      -- (not the user line) because state-only actions like done/start/
+      -- stop don't change the description. Without this the apply.lua
+      -- confirm prompt rendered `v Done: ""` and the user couldn't tell
+      -- which task they were acting on (bug #2, v1.5 QA).
+      local base_desc = base.description or ""
+
       local new_status = lt.status or "pending"
       local old_status = base.status or "pending"
       local new_started = lt._started and true or false
@@ -832,16 +827,16 @@ function M.compute_diff(parsed_lines, base_tasks, opts)
 
       if new_status == "completed" and old_status == "pending" then
         if old_started then
-          local_actions[#local_actions + 1] = { type = "stop", uuid = full_uuid, fields = {} }
+          local_actions[#local_actions + 1] = { type = "stop", uuid = full_uuid, description = base_desc, fields = {} }
         end
-        local_actions[#local_actions + 1] = { type = "done", uuid = full_uuid, fields = {} }
+        local_actions[#local_actions + 1] = { type = "done", uuid = full_uuid, description = base_desc, fields = {} }
       elseif new_status == "pending" and old_status == "completed" then
-        local_actions[#local_actions + 1] = { type = "modify", uuid = full_uuid, fields = { status = "pending" } }
+        local_actions[#local_actions + 1] = { type = "modify", uuid = full_uuid, description = base_desc, fields = { status = "pending" } }
       elseif new_status == "pending" and old_status == "pending" then
         if new_started and not old_started then
-          local_actions[#local_actions + 1] = { type = "start", uuid = full_uuid, fields = {} }
+          local_actions[#local_actions + 1] = { type = "start", uuid = full_uuid, description = base_desc, fields = {} }
         elseif not new_started and old_started then
-          local_actions[#local_actions + 1] = { type = "stop", uuid = full_uuid, fields = {} }
+          local_actions[#local_actions + 1] = { type = "stop", uuid = full_uuid, description = base_desc, fields = {} }
         end
       end
 
@@ -889,7 +884,10 @@ function M.compute_diff(parsed_lines, base_tasks, opts)
       local has_changes = false
       for _ in pairs(changed) do has_changes = true; break end
       if has_changes then
-        local_actions[#local_actions + 1] = { type = "modify", uuid = full_uuid, fields = changed }
+        -- Use the user's NEW description if it changed, else the base
+        -- description. Either way the dialog has something to display.
+        local action_desc = changed.description ~= nil and changed.description or base_desc
+        local_actions[#local_actions + 1] = { type = "modify", uuid = full_uuid, description = action_desc, fields = changed }
       end
 
       if #local_actions > 0 and externally_touched(base) then

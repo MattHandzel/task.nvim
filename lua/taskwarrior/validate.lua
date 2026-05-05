@@ -6,8 +6,8 @@ local M = {}
 -- All valid top-level setup keys (explicit list — includes nil-defaulted keys
 -- that pairs(defaults) would skip).
 local KNOWN_KEYS = {
-	"on_delete", "confirm", "sort", "group", "fields", "taskmd_path",
-	"backend", "capture_key", "open_key", "filter_key", "sort_key",
+	"on_delete", "confirm", "sort", "group", "fields",
+	"capture_key", "open_key", "filter_key", "sort_key",
 	"group_key", "project_add_key", "filters", "projects", "icons",
 	"border_style", "capture_width", "capture_height", "capture_confirm_close",
 	"group_separator",
@@ -33,8 +33,6 @@ local TOP_LEVEL_TYPES = {
 	sort                  = "string",
 	group                 = "string",    -- nil OK
 	fields                = "table",     -- nil OK
-	taskmd_path           = "string",    -- nil OK
-	backend               = "string",
 	capture_key           = "string",    -- nil OK
 	open_key              = "string",    -- nil OK
 	filter_key            = "string",    -- nil OK

@@ -16,8 +16,8 @@
 
 <!-- How did you verify this works? -->
 
-- [ ] `python3 -m pytest tests/ -v` passes locally (358 tests)
-- [ ] `./tests/lua/bootstrap.sh` passes locally (121+ Lua assertions)
+- [ ] `./tests/lua/bootstrap.sh` passes locally (380+ Lua assertions)
+- [ ] `./tests/e2e/run.sh` passes locally if the change touches user-facing flows
 - [ ] Added or updated tests for the change
 - [ ] Tried the feature in a real Neovim session (attach a GIF / screenshot
   if UI-visible)
@@ -28,4 +28,3 @@
 - [ ] No `--amend` on public history
 - [ ] `CHANGELOG.md` updated under `[Unreleased]` if user-visible
 - [ ] No hardcoded field-specific semantics (see CONTRIBUTING.md)
-- [ ] `bin/taskmd` changes stay stdlib-only

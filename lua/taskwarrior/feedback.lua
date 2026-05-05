@@ -465,8 +465,14 @@ local function handle_save(buf)
   table.insert(choices, "Copy payload to clipboard")
   table.insert(choices, "Cancel")
 
+  -- Show the JSON payload via vim.notify so the picker prompt stays
+  -- single-line. Embedding the payload in the prompt got truncated by
+  -- most pickers — the user could only see "taskwarrior.nvim feedback
+  -- — review payload: {"client":..." with the rest cut off.
+  vim.notify("taskwarrior.nvim feedback payload:\n" .. json_display, vim.log.levels.INFO)
+
   vim.ui.select(choices, {
-    prompt = "taskwarrior.nvim feedback — review payload:\n\n" .. json_display .. "\n\nAction?",
+    prompt = "Send feedback?",
   }, function(choice)
     if not choice or choice == "Cancel" then
       vim.notify("taskwarrior.nvim: cancelled")
@@ -617,7 +623,13 @@ end
 -- what the form is — when a user hits g? without context, the
 -- existing template's first line is "## What happened?" which is
 -- not self-explanatory.
-function M.open_with_context(markdown_block)
+function M.open_with_context(markdown_block, opts)
+  opts = opts or {}
+  -- scrubbed defaults to true (the safer mode). When false, the caller
+  -- has explicitly opted into ORIGINAL mode (real descriptions visible),
+  -- and we must rewrite the template's privacy disclaimer to match.
+  local scrubbed = (opts.scrubbed ~= false)
+
   M.open()
 
   local fb_buf
@@ -647,7 +659,26 @@ function M.open_with_context(markdown_block)
   }
   vim.api.nvim_buf_set_lines(fb_buf, 0, 0, false, preamble)
 
-  -- 2. Insert the context block under the "## Anything else?" header.
+  -- 2. ORIGINAL mode: replace the template's "does NOT include task
+  --    descriptions" privacy line with a mode-aware notice. Without this
+  --    the form simultaneously claimed "no descriptions" while pasting
+  --    real descriptions in below — bug #8.
+  if not scrubbed then
+    local lines = vim.api.nvim_buf_get_lines(fb_buf, 0, -1, false)
+    for i, line in ipairs(lines) do
+      if line:find("does NOT") then
+        vim.api.nvim_buf_set_lines(fb_buf, i - 1, i, false, {
+          "> Privacy: this report includes plugin version, neovim/taskwarrior versions,",
+          "> OS, backend, task count, and a snapshot of safe config keys.",
+          "> ⚠ ORIGINAL MODE: the buffer-context block below contains your real",
+          "> task descriptions. Review and redact anything sensitive before submitting.",
+        })
+        break
+      end
+    end
+  end
+
+  -- 3. Insert the context block under the "## Anything else?" header.
   local lines = vim.api.nvim_buf_get_lines(fb_buf, 0, -1, false)
   for i, line in ipairs(lines) do
     if line:match("^## Anything else") then

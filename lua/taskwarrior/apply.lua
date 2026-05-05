@@ -1,21 +1,5 @@
 local M = {}
 
-local function get_taskmd_path()
-  local config = require("taskwarrior.config")
-  if config.options.taskmd_path then
-    return config.options.taskmd_path
-  end
-  local source = debug.getinfo(1, "S").source:sub(2)
-  local plugin_dir = vim.fn.fnamemodify(source, ":h:h:h")
-  return plugin_dir .. "/bin/taskmd"
-end
-
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  local ok = vim.v.shell_error == 0
-  return out, ok
-end
-
 -- Backup the Taskwarrior data directory before applying changes. Best-effort:
 -- failures are reported but do not block the apply.
 local function backup_taskdata()
@@ -88,38 +72,20 @@ local function partition_conflicts(conflicts)
   return blocking, info
 end
 
--- Apply helper: runs Lua backend if configured, else shells to bin/taskmd.
+-- Apply helper: drives the Lua backend.
 -- Returns (result_table, error_string_or_nil).
 local function do_apply(opts)
   -- opts: { content=str, tmpfile=str, dry_run=bool, on_delete=str, force=bool }
-  local config = require("taskwarrior.config")
-  if config.options.backend ~= "python" then
-    local ok_m, tm = pcall(require, "taskwarrior.taskmd")
-    if ok_m then
-      local ok_a, result = pcall(tm.apply, {
-        content = opts.content,
-        file = opts.tmpfile,
-        dry_run = opts.dry_run,
-        on_delete = opts.on_delete,
-        force = opts.force,
-      })
-      if ok_a and type(result) == "table" then return result, nil end
-      vim.notify("taskwarrior.nvim: Lua backend apply failed (" .. tostring(result) .. "); falling back to Python",
-        vim.log.levels.WARN)
-    end
-  end
-  local taskmd = get_taskmd_path()
-  local flags = {}
-  if opts.dry_run then table.insert(flags, "--dry-run") end
-  if opts.force then table.insert(flags, "--force") end
-  table.insert(flags, "--on-delete=" .. (opts.on_delete or "done"))
-  local cmd = string.format("%s apply %s %s",
-    taskmd, table.concat(flags, " "), vim.fn.shellescape(opts.tmpfile))
-  local out, ok = run(cmd)
-  if not ok then return nil, out end
-  local ok2, decoded = pcall(vim.fn.json_decode, out)
-  if not ok2 or type(decoded) ~= "table" then return nil, "could not parse output" end
-  return decoded, nil
+  local tm = require("taskwarrior.taskmd")
+  local ok, result = pcall(tm.apply, {
+    content   = opts.content,
+    file      = opts.tmpfile,
+    dry_run   = opts.dry_run,
+    on_delete = opts.on_delete,
+    force     = opts.force,
+  })
+  if ok and type(result) == "table" then return result, nil end
+  return nil, tostring(result)
 end
 
 -- on_write: BufWriteCmd handler.
@@ -206,22 +172,26 @@ function M.on_write(bufnr, refresh_fn, do_apply_fn)
       return
     end
 
-    local preview = table.concat(labels, "\n")
+    -- Show the per-action preview via vim.notify BEFORE the picker.
+    -- Many pickers (telescope, fzf-lua, snacks.nvim, …) render the
+    -- prompt as a single-line title bar and truncate at window width,
+    -- so a multi-line preview embedded in the prompt gets cut off
+    -- ("Apply 3 change(s)? ~ Modify: \"Buy m…" with the rest invisible).
+    -- Notifying first puts the full preview in the messages log; the
+    -- picker prompt itself stays a short, single-line question.
+    vim.notify(table.concat(labels, "\n"), vim.log.levels.INFO)
 
-    local choices
-    local prompt
+    local choices, prompt
     if #blocking > 0 then
       choices = {
         "Apply safe (skip conflicts)",
         "Apply force (overwrite external changes)",
         "Cancel",
       }
-      prompt = string.format(
-        "%d change(s), %d conflict(s):\n%s",
-        #actions, #blocking, preview)
+      prompt = string.format("Apply %d change(s) with %d conflict(s)?", #actions, #blocking)
     else
       choices = { "Apply", "Cancel" }
-      prompt = string.format("Apply %d change(s)?\n%s", #actions, preview)
+      prompt = string.format("Apply %d change(s)?", #actions)
     end
 
     vim.ui.select(choices, { prompt = prompt }, function(choice)
@@ -254,8 +224,10 @@ function M.on_write(bufnr, refresh_fn, do_apply_fn)
       if #blocking > 0 then
         local lines_out = { "taskwarrior.nvim: refusing to save — merge conflict on:" }
         for _, c in ipairs(blocking) do table.insert(lines_out, "  " .. fmt_conflict(c)) end
-        table.insert(lines_out, "Reload the buffer (`:TaskRefresh` or `:e`) and re-apply, or use `:w!` to force.")
-        vim.notify(table.concat(lines_out, "\n"), vim.log.levels.ERROR)
+        table.insert(lines_out,
+          "Reload the buffer (`:TaskRefresh` or `:e`) and re-apply, or use `:w!` to force.")
+        local msg = require("taskwarrior.prefix").rebrand(table.concat(lines_out, "\n"))
+        vim.notify(msg, vim.log.levels.ERROR)
         vim.fn.delete(tmpfile)
         return
       end
@@ -292,8 +264,8 @@ function M.undo(bufnr, refresh_fn)
     if choice ~= "Undo" then return end
     local failed = 0
     for _ = 1, count do
-      local _, ok = run("task rc.bulk=0 rc.confirmation=off undo")
-      if not ok then failed = failed + 1 end
+      vim.fn.system({ "task", "rc.bulk=0", "rc.confirmation=off", "undo" })
+      if vim.v.shell_error ~= 0 then failed = failed + 1 end
     end
     vim.b[bufnr].task_last_action_count = nil
     if failed > 0 then
@@ -331,9 +303,19 @@ function M.do_apply_and_refresh(bufnr, tmpfile, on_delete, refresh_fn, opts)
   if (summary.deleted or 0) > 0 then
     msg = msg .. string.format(", x%d deleted", summary.deleted)
   end
-  local n_conflicts = summary.conflicts and #summary.conflicts or 0
-  if n_conflicts > 0 and not opts.force then
-    msg = msg .. string.format(" (%d conflict(s) skipped)", n_conflicts)
+  -- Distinguish blocking conflicts (real merge decisions skipped) from
+  -- informational conflicts (external add/delete preserved on the next
+  -- refresh). Pre-v1.5 the message lumped them together as "N skipped"
+  -- which spooked users into thinking benign external adds had been
+  -- discarded (bug #6).
+  if not opts.force and summary.conflicts and #summary.conflicts > 0 then
+    local blocking, info = partition_conflicts(summary.conflicts)
+    if #blocking > 0 then
+      msg = msg .. string.format(" (%d conflict(s) skipped)", #blocking)
+    end
+    if #info > 0 then
+      msg = msg .. string.format(" (%d external change(s) preserved)", #info)
+    end
   end
   if summary.errors and #summary.errors > 0 then
     msg = msg .. string.format(" (%d errors!)", #summary.errors)

@@ -31,14 +31,13 @@ o                                       -- add new task inline
 - 🎯 **Guided review + GTD inbox** — `:TwReview` walks pending tasks in urgency order; `:TwInbox` triages new captures
 - 🤖 **Delegate to Claude** — `:TwDelegate` opens a popup form and runs the task as a Claude prompt in a bottom split
 - 🎓 **Interactive tutor** — `:TwTutor` teaches Taskwarrior + the plugin from scratch in 20 minutes, fully sandboxed (your real `~/.task` is never touched)
-- 🚀 **Pure-Lua hot path, zero runtime deps** — optional Python CLI in `bin/taskmd` for scripting and pipelines
-- 🧪 **480+ tests** — Python CLI, Lua backend, end-to-end against a real `task` binary including external-write conflict scenarios
+- 🚀 **Pure-Lua, zero runtime deps** — no Python, no subprocesses on the hot path; just Neovim + the `task` CLI
+- 🧪 **380+ tests** — Lua unit + smoke + end-to-end against a real `task` binary including external-write conflict scenarios
 
 ## ⚡ Requirements
 
 - Neovim ≥ 0.9
 - Taskwarrior ≥ 2.6 (compatible with 3.x)
-- Python ≥ 3.8 — *optional*, only for the `bin/taskmd` CLI and live diff-preview virt-text. The default render/save path is pure Lua.
 
 ## 📦 Installation
 
@@ -338,21 +337,7 @@ UUID markers are invisible thanks to `conceallevel=3` + `concealcursor`, and sur
 
 ## Health check
 
-Run `:checkhealth taskwarrior` to verify your setup (Neovim version, Taskwarrior CLI, optional Python, `taskmd` binary, data directory).
-
-## CLI usage
-
-The bundled `taskmd` CLI is optional and works standalone for scripting and automation:
-
-```bash
-taskmd render project:Inbox --sort=due+      # markdown to stdout
-taskmd render --group=project                # grouped view
-taskmd apply tasks.md                         # sync edits back
-taskmd apply tasks.md --dry-run              # preview changes as JSON
-taskmd completions                            # JSON for editor completion
-```
-
-Useful for: piping rendered tasks through `grep`/`fzf`, automating bulk operations from shell scripts, integrating with non-vim editors.
+Run `:checkhealth taskwarrior` to verify your setup (Neovim version, Taskwarrior CLI, data directory).
 
 ## Data safety
 
@@ -362,7 +347,7 @@ Useful for: piping rendered tasks through `grep`/`fzf`, automating bulk operatio
 
 By default (`auto_backup = true`), the plugin copies your Taskwarrior data directory to `stdpath("data")/taskwarrior.nvim/backups/<timestamp>/` immediately before any apply. The ten newest backups are kept; older ones are pruned. Disable with `auto_backup = false` in `setup()`.
 
-The CLI also refuses to `apply` a file with a missing or malformed header unless you pass `--force`, preventing the "hand-wrote a file, got every pending task marked done" failure mode.
+The save path also refuses to apply a file with a missing or malformed header unless you pass `:w!`, preventing the "hand-wrote a file, got every pending task marked done" failure mode.
 
 **You should still keep an external backup of `~/.task`.** The plugin's backups are a convenience, not a replacement.
 
@@ -415,12 +400,11 @@ Run `:help taskwarrior.nvim` inside Neovim for the full reference, or read [`doc
 See [CONTRIBUTING.md](CONTRIBUTING.md). Quick version:
 
 ```bash
-python3 -m pytest tests/ -v        # 358 tests, stdlib-only CLI
-./tests/lua/bootstrap.sh           # 121 Lua assertions via plenary
+./tests/lua/bootstrap.sh           # 380+ Lua assertions via plenary
 ./tests/e2e/run.sh                 # end-to-end against real `task` binary
 ```
 
-Every bug fix needs a regression test. The Python suite covers the `bin/taskmd` CLI; the Lua suite covers the in-editor backend; the e2e suite drives every feature against a real `task` CLI and validates downstream output.
+Every bug fix needs a regression test. The Lua suite covers parser/diff/render/save and every user-facing command; the e2e suite drives features against a real `task` CLI and validates downstream output (mmdc for Mermaid, `task export` for mutations, window state for floats).
 
 ## Changelog
 

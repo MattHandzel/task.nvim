@@ -17,9 +17,8 @@ CONTENTS                                                    *taskwarrior-content
     12. Delegation ......................... |taskwarrior-delegate|
     13. Health check ....................... |taskwarrior-health|
     14. Data safety ........................ |taskwarrior-safety|
-    15. CLI ................................ |taskwarrior-cli|
-    16. Troubleshooting .................... |taskwarrior-troubleshooting|
-    17. License ............................ |taskwarrior-license|
+    15. Troubleshooting .................... |taskwarrior-troubleshooting|
+    16. License ............................ |taskwarrior-license|
 
 ==============================================================================
 1. INTRODUCTION                                                *taskwarrior-intro*
@@ -36,8 +35,6 @@ scratch view of the live Taskwarrior database.
 
     - Neovim >= 0.9
     - Taskwarrior >= 2.6 (3.x supported)
-    - Python >= 3.8 (optional; only needed for the `bin/taskmd` CLI and
-      the live diff-preview virtual text. The default backend is pure Lua.)
 
 ==============================================================================
 3. INSTALLATION                                        *taskwarrior-installation*
@@ -378,7 +375,6 @@ Full schema with defaults: >
       sort              = "urgency-",
       group             = nil,
       fields            = nil,
-      backend           = "lua",      -- or "python"
       capture_key       = "<leader>ta",
       open_key          = "<leader>tt",
       filter_key        = "<leader>tf",
@@ -655,8 +651,6 @@ Run `:checkhealth taskwarrior` to verify:
 
     - Neovim version
     - Taskwarrior presence and version
-    - Python availability
-    - `taskmd` CLI path
     - Taskwarrior data directory
 
 ==============================================================================
@@ -676,29 +670,15 @@ newest are retained, older ones are pruned. Disable by setting
 `auto_backup = false`.
 
 taskwarrior.nvim also refuses to apply a markdown file whose header line has been
-deleted or corrupted, unless the `taskmd` CLI is invoked with `--force`.
-This prevents the "silent delete every pending task" failure mode.
+deleted or corrupted, unless `:w!` is used. This prevents the "silent delete
+every pending task" failure mode.
 
 You should additionally keep your Taskwarrior database under version
 control or a regular backup — taskwarrior.nvim's backups are convenience, not a
 substitute for real backups.
 
 ==============================================================================
-15. CLI                                                        *taskwarrior-cli*
-
-The bundled `bin/taskmd` script is usable standalone: >
-
-    taskmd render project:Inbox --sort=due+
-    taskmd render --group=project
-    taskmd apply tasks.md
-    taskmd apply tasks.md --dry-run
-    taskmd completions
-<
-Useful for piping rendered tasks through grep/fzf, or integrating with
-editors other than Neovim.
-
-==============================================================================
-16. TROUBLESHOOTING                                 *taskwarrior-troubleshooting*
+15. TROUBLESHOOTING                                 *taskwarrior-troubleshooting*
 
 Error "Not allowed to change text or change window" when submitting
 :TwAdd with nvim-cmp installed ~
@@ -779,7 +759,7 @@ dashboard.nvim: >
 <
 
 ==============================================================================
-17. LICENSE                                                *taskwarrior-license*
+16. LICENSE                                                *taskwarrior-license*
 
 MIT. See LICENSE for the full text.
 

@@ -16,17 +16,11 @@ end
 -- cmd: 'task' is not executable` from inside vim.schedule, which the user
 -- sees as an unintelligible Lua stack trace (cf. issue #2). Fail loud and
 -- friendly instead. Plugin commands stay registered; they no-op safely
--- via Layer B in lua/taskwarrior/taskmd.lua run().
-if vim.fn.executable("task") ~= 1 then
-  vim.notify(
-    "taskwarrior.nvim: `task` not found on PATH.\n"
-      .. "Install Taskwarrior from https://taskwarrior.org/install/ and ensure "
-      .. "the `task` binary is on PATH (or set vim.env.PATH from your nvim config "
-      .. "if it lives somewhere unusual).\n"
-      .. "Run :checkhealth taskwarrior after installing to verify.",
-    vim.log.levels.WARN
-  )
-end
+-- via the Layer-B check in lua/taskwarrior/taskmd.lua run().
+--
+-- Routed through lua/taskwarrior/runtime.lua so the WARN copy + once-per-
+-- session throttle is owned in one place.
+require("taskwarrior.runtime").ensure_available()
 
 local function lazy(method)
   return function(cmd_opts)

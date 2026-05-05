@@ -34,13 +34,17 @@ function M.run(open_fn)
     end
     local t = tasks[idx]
     local short = t.uuid and t.uuid:sub(1, 8) or ""
-    local lines = {
+    -- Show full per-task detail via vim.notify so the picker prompt
+    -- stays single-line. Most picker UIs truncate the prompt at the
+    -- window width and a multi-line header would be cut off.
+    local detail_lines = {
       string.format("[%d/%d]  %s", idx, #tasks, t.description or ""),
       string.format("project:%s  urgency:%.1f", t.project or "(none)", t.urgency or 0),
     }
-    if t.due then table.insert(lines, string.format("due:%s", t.due)) end
-    if t.tags and #t.tags > 0 then table.insert(lines, "tags:" .. table.concat(t.tags, ",")) end
-    local header = table.concat(lines, "\n") .. "\n"
+    if t.due then table.insert(detail_lines, string.format("due:%s", t.due)) end
+    if t.tags and #t.tags > 0 then table.insert(detail_lines, "tags:" .. table.concat(t.tags, ",")) end
+    vim.notify(table.concat(detail_lines, "\n"), vim.log.levels.INFO)
+
     local choices = {
       "k  Keep (next)",
       "d  Defer (set wait:tomorrow)",
@@ -50,7 +54,7 @@ function M.run(open_fn)
       "q  Quit review",
     }
     vim.ui.select(choices, {
-      prompt = header .. "Action:",
+      prompt = string.format("Review %d/%d:", idx, #tasks),
       format_item = function(i) return i end,
     }, function(choice)
       if not choice then return end
