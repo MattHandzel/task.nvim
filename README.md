@@ -10,7 +10,7 @@
 <a href="https://github.com/MattHandzel/taskwarrior.nvim/issues"><img src="https://img.shields.io/github/issues/MattHandzel/taskwarrior.nvim?style=for-the-badge&logo=bilibili&color=F5E0DC&logoColor=D9E0EE&labelColor=302D41" alt="Issues"></a>
 </p>
 
-![hero demo: bulk-edit priorities with a substitute, save, watch them apply](demo/assets/hero.gif)
+![60-second tour: bulk-edit, quick capture, filter+group, fullscreen visualizations, guided review, live diff preview](demo/assets/launch.gif)
 
 ## ✨ Features
 
@@ -57,7 +57,7 @@ Edit any line. `:w` to sync. That's it.
 
 A 5-lesson, ~20-minute interactive walkthrough that teaches the Taskwarrior CLI. Fully sandboxed.
 
-Prefer video? Andrew Dumont's [Taskwarrior intro on YouTube](https://www.youtube.com/watch?v=5wmcn9-IQE4) is a great 8-minute primer; come back to `:TwTutor` after.
+Prefer video? Andrew Dumont's [Taskwarrior intro on YouTube](https://www.youtube.com/watch?v=5wmcn9-IQE4) is a great 5-minute primer; come back to `:TwTutor` after.
 
 ---
 

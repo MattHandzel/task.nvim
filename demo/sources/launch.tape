@@ -22,6 +22,9 @@
 # Length target: ~62–68s. Reddit autoplay caps interest around 60–75s.
 
 Output demo/assets/launch.mp4
+# Also emit a GIF for the README hero — GIFs autoplay in GitHub
+# previews where MP4 needs an explicit play tap.
+Output demo/assets/launch.gif
 
 Require nvim
 Require task

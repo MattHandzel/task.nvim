@@ -106,6 +106,9 @@ declare -A MAX_SIZES=(
   ["review.gif"]=2000
   ["delegate.gif"]=2000
   ["diff-preview.gif"]=3000
+  # launch.gif is the README hero: 55s @ 1280×720 @ 15fps. ~4 MB
+  # is fine for GitHub autoplay; ceiling at 6 MB to catch leaks.
+  ["launch.gif"]=6000
 )
 
 echo
