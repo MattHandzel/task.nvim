@@ -79,6 +79,31 @@ if [ "$errors" -gt 0 ]; then
   exit 1
 fi
 
+# -- Step 2.5: Generate the compact launch.gif variant -------------------
+#
+# launch.gif is the README hero (1280×720 @ 15fps, ~4 MB). Some
+# surfaces — r/neovim image preview, chat-embed thumbnails, mobile
+# preview cards — want a smaller version. We re-encode from launch.mp4
+# rather than re-running VHS (the mp4 is the high-fidelity source;
+# this is just a downsample). Skip silently if launch.mp4 wasn't
+# rendered this round.
+if [ -f demo/assets/launch.mp4 ] && command -v ffmpeg &>/dev/null; then
+  echo
+  echo -n "  Generating launch-small.gif (960×540 @ 12fps)... "
+  tmp_palette=$(mktemp --suffix=.png)
+  if ffmpeg -y -loglevel error -i demo/assets/launch.mp4 \
+      -vf "fps=12,scale=960:-1:flags=lanczos,palettegen=stats_mode=diff" \
+      "$tmp_palette" 2>/dev/null \
+      && ffmpeg -y -loglevel error -i demo/assets/launch.mp4 -i "$tmp_palette" \
+      -filter_complex "fps=12,scale=960:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5" \
+      demo/assets/launch-small.gif 2>/dev/null; then
+    echo -e "${GREEN}done${NC}"
+  else
+    echo -e "${YELLOW}skip${NC} (ffmpeg failed; launch-small.gif may be stale)"
+  fi
+  rm -f "$tmp_palette"
+fi
+
 # -- Step 3: Post-render size checks --------------------------------------
 #
 # A privacy leak (rendering against a real 300+ task db instead of the 50-task
@@ -109,6 +134,10 @@ declare -A MAX_SIZES=(
   # launch.gif is the README hero: 55s @ 1280×720 @ 15fps. ~4 MB
   # is fine for GitHub autoplay; ceiling at 6 MB to catch leaks.
   ["launch.gif"]=6000
+  # launch-small.gif is the compact variant: 55s @ 960×540 @ 12fps,
+  # ~2.7 MB. Used in size-constrained surfaces (r/neovim image
+  # preview, mobile previews, chat embeds).
+  ["launch-small.gif"]=4000
 )
 
 echo
