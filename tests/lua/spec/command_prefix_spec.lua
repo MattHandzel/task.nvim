@@ -11,10 +11,13 @@
 -- both sources stay in sync.
 
 local function clear_user_commands()
-  -- Best-effort wipe of any *Task* / *Tw* commands left by a prior test.
+  -- Best-effort wipe of any commands left by a prior test in this spec.
+  -- Includes "Foo" since one test registers :Foo* via an arbitrary prefix
+  -- and stale :FooFilter/etc. would leak into later tests.
   for _, name in ipairs({
     "Task", "TaskFilter", "TaskAdd", "TaskHelp", "TaskTutor",
     "Tw",   "TwFilter",   "TwAdd",   "TwHelp",   "TwTutor",
+    "Foo",  "FooFilter",  "FooAdd",  "FooHelp",  "FooTutor",
   }) do
     pcall(vim.api.nvim_del_user_command, name)
   end
@@ -37,47 +40,60 @@ describe("command_prefix — issue #1 (configurable command names)", function()
     clear_user_commands()
   end)
 
-  describe("default behavior — backward compatible", function()
-    it("with no override, registers commands under the Task* namespace", function()
+  describe("default behavior — :Tw* (changed from :Task* in v1.4.1)", function()
+    it("with no override, registers commands under the Tw* namespace", function()
       require("taskwarrior").setup({})
       local cmds = vim.api.nvim_get_commands({})
-      assert.is_not_nil(cmds.Task,       ":Task should be registered by default")
-      assert.is_not_nil(cmds.TaskFilter, ":TaskFilter should be registered by default")
-      assert.is_not_nil(cmds.TaskHelp,   ":TaskHelp should be registered by default")
-    end)
-
-    it("config.options.command_prefix defaults to 'Task'", function()
-      require("taskwarrior").setup({})
-      assert.equals("Task", require("taskwarrior.config").options.command_prefix)
-    end)
-  end)
-
-  describe("override via vim.g.taskwarrior_command_prefix", function()
-    it("'Tw' → commands are :Tw*, no :Task* registered by setup()", function()
-      vim.g.taskwarrior_command_prefix = "Tw"
-      require("taskwarrior").setup({})
-      local cmds = vim.api.nvim_get_commands({})
-      assert.is_not_nil(cmds.Tw,        ":Tw should be registered with prefix=Tw")
-      assert.is_not_nil(cmds.TwFilter,  ":TwFilter should be registered with prefix=Tw")
+      assert.is_not_nil(cmds.Tw,       ":Tw should be registered by default")
+      assert.is_not_nil(cmds.TwFilter, ":TwFilter should be registered by default")
+      assert.is_not_nil(cmds.TwHelp,   ":TwHelp should be registered by default")
+      -- And :Task* should NOT be present unless the user opts in.
       assert.is_nil(cmds.TaskFilter,
-        ":TaskFilter should NOT be registered when prefix=Tw")
+        ":TaskFilter should NOT be registered by default after the v1.4.1 flip")
     end)
 
-    it("vim.g override propagates into config.options.command_prefix", function()
-      vim.g.taskwarrior_command_prefix = "Tw"
+    it("config.options.command_prefix defaults to 'Tw'", function()
       require("taskwarrior").setup({})
       assert.equals("Tw", require("taskwarrior.config").options.command_prefix)
     end)
   end)
 
-  describe("override via setup() option", function()
-    it("setup({ command_prefix = 'Tw' }) → :Tw* registered", function()
-      require("taskwarrior").setup({ command_prefix = "Tw" })
+  describe("override via vim.g.taskwarrior_command_prefix", function()
+    it("'Task' (legacy) → commands revert to :Task*", function()
+      -- The reverse of the new default: existing users who want their
+      -- old keymaps back set vim.g.taskwarrior_command_prefix = "Task".
+      vim.g.taskwarrior_command_prefix = "Task"
+      require("taskwarrior").setup({})
       local cmds = vim.api.nvim_get_commands({})
-      assert.is_not_nil(cmds.Tw,       ":Tw should be registered with config prefix=Tw")
-      assert.is_not_nil(cmds.TwFilter, ":TwFilter should be registered")
-      assert.is_nil(cmds.TaskFilter,
-        ":TaskFilter should NOT be registered when prefix=Tw")
+      assert.is_not_nil(cmds.Task,        ":Task should be registered with prefix=Task")
+      assert.is_not_nil(cmds.TaskFilter,  ":TaskFilter should be registered with prefix=Task")
+      assert.is_nil(cmds.TwFilter,
+        ":TwFilter should NOT be registered when user explicitly opts back to Task")
+    end)
+
+    it("vim.g override propagates into config.options.command_prefix", function()
+      vim.g.taskwarrior_command_prefix = "Task"
+      require("taskwarrior").setup({})
+      assert.equals("Task", require("taskwarrior.config").options.command_prefix)
+    end)
+
+    it("arbitrary prefix 'Foo' works too", function()
+      vim.g.taskwarrior_command_prefix = "Foo"
+      require("taskwarrior").setup({})
+      local cmds = vim.api.nvim_get_commands({})
+      assert.is_not_nil(cmds.Foo,       ":Foo should be registered with prefix=Foo")
+      assert.is_not_nil(cmds.FooFilter, ":FooFilter should be registered")
+    end)
+  end)
+
+  describe("override via setup() option", function()
+    it("setup({ command_prefix = 'Task' }) → :Task* registered", function()
+      require("taskwarrior").setup({ command_prefix = "Task" })
+      local cmds = vim.api.nvim_get_commands({})
+      assert.is_not_nil(cmds.Task,       ":Task should be registered with config prefix=Task")
+      assert.is_not_nil(cmds.TaskFilter, ":TaskFilter should be registered")
+      assert.is_nil(cmds.TwFilter,
+        ":TwFilter should NOT be registered when prefix=Task")
     end)
 
     it("vim.g wins when both are set (vim.g is the user-explicit override)", function()
@@ -117,8 +133,10 @@ describe("command_prefix — issue #1 (configurable command names)", function()
 
   describe("collision detection", function()
     it("warns once when :<prefix> is already defined", function()
-      -- Pretend Shatur/neovim-tasks already registered :Task.
-      vim.api.nvim_create_user_command("Task", function() end, { nargs = "*" })
+      -- Pretend some other plugin already registered :Tw (the new default
+      -- prefix as of v1.4.1). Pre-flip this would have used :Task to
+      -- mimic Shatur/neovim-tasks; with :Tw as default, we collide on :Tw.
+      vim.api.nvim_create_user_command("Tw", function() end, { nargs = "*" })
 
       local notifications = {}
       local original_notify = vim.notify

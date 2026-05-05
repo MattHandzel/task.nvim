@@ -112,10 +112,18 @@ FILTER EXAMPLES
 ]]
 
 function M.show(set_buf_lines_fn)
+  -- Substitute every literal `:Task` with `:<configured prefix>` so the
+  -- help text reflects the actual commands the user has registered.
+  -- Works because `Task` is a prefix of every Task* command name; the
+  -- gsub catches `:Task`, `:TaskFilter`, `:TaskSort`, etc. in one pass.
+  -- When prefix == "Task" (legacy default) the substitution is a no-op.
+  local prefix = (require("taskwarrior.config").options.command_prefix) or "Task"
+  local rendered = HELP_TEXT:gsub(":Task", ":" .. prefix)
+
   local help_buf = vim.api.nvim_create_buf(false, true)
   vim.bo[help_buf].buftype = "nofile"
   vim.bo[help_buf].filetype = "markdown"
-  set_buf_lines_fn(help_buf, HELP_TEXT)
+  set_buf_lines_fn(help_buf, rendered)
   vim.bo[help_buf].modifiable = false
   vim.cmd("split")
   vim.api.nvim_win_set_buf(0, help_buf)

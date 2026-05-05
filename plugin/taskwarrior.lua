@@ -58,7 +58,13 @@ end
 -- isn't populated yet. Users override the lazy command name by setting
 -- vim.g.taskwarrior_command_prefix in their init (lazy.nvim users: in the
 -- spec's `init = function() … end` block, which runs at load time).
-local lazy_prefix = vim.g.taskwarrior_command_prefix or "Task"
+--
+-- Default fell from "Task" → "Tw" in v1.4.1 to resolve issue #1 collision
+-- with Shatur/neovim-tasks. Must match the `command_prefix` default in
+-- lua/taskwarrior/config.lua (which the rest of the plugin reads after
+-- setup) — otherwise the lazy `:Task` and the post-setup `:Tw` would
+-- co-exist as orphans of each other.
+local lazy_prefix = vim.g.taskwarrior_command_prefix or "Tw"
 if lazy_prefix:match("^[A-Z][A-Za-z]*$") then
   vim.api.nvim_create_user_command(lazy_prefix, function(cmd_opts)
     local ok, task = pcall(require, "taskwarrior")

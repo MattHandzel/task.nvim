@@ -632,8 +632,13 @@ function M.open_with_context(markdown_block)
   -- 1. Prepend a preamble above the title line so the user lands on a
   --    clear "you're filing a bug report" callout. Inserted as a
   --    quote-block so it visually separates from the user's input.
+  --    The "inside a :X buffer" line uses the configured command prefix
+  --    so it actually names a command the user can invoke (default :Tw
+  --    since v1.4.1).
+  local cfg_ok, cfg = pcall(require, "taskwarrior.config")
+  local cmd_prefix = (cfg_ok and cfg.options.command_prefix) or "Tw"
   local preamble = {
-    "> **Bug-report form** — opened from `g?` inside a `:Task` buffer.",
+    "> **Bug-report form** — opened from `g?` inside a `:" .. cmd_prefix .. "` buffer.",
     "> Fill in the sections below, then `:w` to choose how to send",
     "> (open as a GitHub issue / copy to clipboard / send to endpoint).",
     "> The buffer-context block is auto-attached under \"Anything else?\";",

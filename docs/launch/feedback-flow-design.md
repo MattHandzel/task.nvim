@@ -9,16 +9,16 @@
 
 ## Current state — and what's broken
 
-`lua/taskwarrior/feedback.lua` already exists and provides `:TaskFeedback`. It's structurally sound but bricked by a default-config bug:
+`lua/taskwarrior/feedback.lua` already exists and provides `:TwFeedback`. It's structurally sound but bricked by a default-config bug:
 
 | Symptom | Root cause | Fix |
 |---|---|---|
-| `:TaskFeedback` no-ops with "feedback is disabled" notify on default install | `feedback_endpoint = false` default → `M.open()` early-returns at `feedback.lua:441–447` regardless of which output the user wants | Default `feedback_endpoint = nil` (omitted, not boolean false). Gate ONLY the "Send to endpoint" choice on the endpoint, not the entire flow. The "Open as GitHub issue" + "Copy to clipboard" paths must work without any endpoint configured. |
-| Users don't know `:TaskFeedback` exists | No discoverability | Add a one-shot session-scoped hint when an ERROR notify fires from the plugin: "Press `:TaskFeedback` to report this." Throttled to once per session. |
+| `:TwFeedback` no-ops with "feedback is disabled" notify on default install | `feedback_endpoint = false` default → `M.open()` early-returns at `feedback.lua:441–447` regardless of which output the user wants | Default `feedback_endpoint = nil` (omitted, not boolean false). Gate ONLY the "Send to endpoint" choice on the endpoint, not the entire flow. The "Open as GitHub issue" + "Copy to clipboard" paths must work without any endpoint configured. |
+| Users don't know `:TwFeedback` exists | No discoverability | Add a one-shot session-scoped hint when an ERROR notify fires from the plugin: "Press `:TwFeedback` to report this." Throttled to once per session. |
 | Reports lack runtime context | Form template is empty boxes; user has to manually transcribe what happened | Add an auto-filled "Recent log entries" section pulling from a new in-memory ring buffer (last 10 plugin notifications at WARN/ERROR level). |
-| User can't easily copy a stack trace from `:messages` into the form | No bridge | Add a `:TaskFeedback last-error` subcommand that prefills the form with the most recent ERROR + its stack trace. |
+| User can't easily copy a stack trace from `:messages` into the form | No bridge | Add a `:TwFeedback last-error` subcommand that prefills the form with the most recent ERROR + its stack trace. |
 
-Practical impact today: msakiart hit issue #2, but `:TaskFeedback` would have refused to open. They had to use the GitHub web UI manually. We need this fixed before launch traffic arrives.
+Practical impact today: msakiart hit issue #2, but `:TwFeedback` would have refused to open. They had to use the GitHub web UI manually. We need this fixed before launch traffic arrives.
 
 ---
 
@@ -27,8 +27,8 @@ Practical impact today: msakiart hit issue #2, but `:TaskFeedback` would have re
 ### Three tiers of discoverability
 
 **Tier 1 — Always-available (everyone gets this)**
-- `:TaskFeedback` opens the structured form.
-- `:TaskFeedback last-error` prefills with the most recent ERROR.
+- `:TwFeedback` opens the structured form.
+- `:TwFeedback last-error` prefills with the most recent ERROR.
 - Optional global keymap `<leader>tF` (configurable; default off so we don't claim leader keys without consent).
 
 **Tier 2 — Context capture (auto, opt-out via config)**
@@ -38,11 +38,11 @@ Practical impact today: msakiart hit issue #2, but `:TaskFeedback` would have re
 - Opt out via `setup({ feedback = { capture_log = false } })`.
 
 **Tier 3 — One-shot session hint (opt-out)**
-- The first time `taskwarrior.notify` emits at ERROR severity in a given nvim session, append a one-line hint: "Tip: press `:TaskFeedback last-error` to report this with one click."
+- The first time `taskwarrior.notify` emits at ERROR severity in a given nvim session, append a one-line hint: "Tip: press `:TwFeedback last-error` to report this with one click."
 - One per session, not one per error. Stored in a module-local boolean.
 - Opt out via `setup({ feedback = { hint_on_error = false } })`.
 
-### The form (what the user sees on `:TaskFeedback`)
+### The form (what the user sees on `:TwFeedback`)
 
 Markdown buffer named `[taskwarrior.nvim Feedback]`. Pre-filled template:
 
@@ -97,13 +97,13 @@ After `:w` on the buffer, `vim.ui.select` prompts:
 
 For "Open as GitHub issue", the body is URL-encoded into `https://github.com/MattHandzel/taskwarrior.nvim/issues/new?title=...&body=...`, opened via `vim.ui.open` (nvim 0.10+) or `xdg-open` fallback.
 
-### `:TaskFeedback last-error` — the launch-week killer feature
+### `:TwFeedback last-error` — the launch-week killer feature
 
 The flow that solves the msakiart case:
 
 1. User hits a bug → plugin emits an ERROR notify (e.g. "task export failed: connection refused").
-2. Tier 3 hint appears: "Tip: press :TaskFeedback last-error to report this with one click."
-3. User runs `:TaskFeedback last-error`.
+2. Tier 3 hint appears: "Tip: press :TwFeedback last-error to report this with one click."
+3. User runs `:TwFeedback last-error`.
 4. Form opens with:
    - **What happened?** prefilled: "task export failed: connection refused"
    - **Recent log entries** auto-filled with the last 10 entries (the error in context)
@@ -160,7 +160,7 @@ positions at the top level, but `feedback_endpoint` defaults change from
 
 **Commit 1 — Tests (RED)**
 - `tests/lua/spec/feedback_spec.lua`
-- Assert: `:TaskFeedback` opens with default config (current bug)
+- Assert: `:TwFeedback` opens with default config (current bug)
 - Assert: form contains all four expected sections
 - Assert: ring buffer captures WARN+ but not INFO
 - Assert: ring buffer caps at `capture_log_size` (FIFO eviction)
@@ -184,13 +184,13 @@ positions at the top level, but `feedback_endpoint` defaults change from
 
 **Commit 4 — Hint + `last-error` subcommand + keymap**
 - `taskwarrior.notify` checks the once-per-session flag and appends the hint string when emitting ERROR
-- `:TaskFeedback last-error` subcommand reads the most recent ERROR from the ring buffer and prefills the form
+- `:TwFeedback last-error` subcommand reads the most recent ERROR from the ring buffer and prefills the form
 - Optional `feedback_key` registers a global keymap if set
 - Spec for these branches
 
 **Commit 5 — README + help doc + CHANGELOG**
 - README: new "Reporting bugs" section between Help and Contributing
-- doc/taskwarrior.txt: `:TaskFeedback` and `:TaskFeedback-last-error` tags
+- doc/taskwarrior.txt: `:TwFeedback` and `:TwFeedback-last-error` tags
 - CHANGELOG: v1.4.1 entry
 
 ---
@@ -203,7 +203,7 @@ positions at the top level, but `feedback_endpoint` defaults change from
 | **Monkey-patch global `vim.notify`** | Affects every plugin's notifications. Rude. Unmaintainable. We capture only our own. |
 | **Always-on hint on every error** | Spam. Once-per-session is enough — the user remembers the command after seeing it once. |
 | **HTTP-only feedback endpoint** | Requires server, requires hosting, requires cost commitment. The GitHub-issue path is hosted by GitHub for free, lives in public, and is what users would paste into a manual issue anyway. |
-| **GitHub Issue Forms (`.github/ISSUE_TEMPLATE/*.yml`)** | We already have these. They help if the user reaches GitHub on their own. The point of `:TaskFeedback` is to bridge users from "saw an error in nvim" to "issue submitted on GitHub" without leaving the editor first. |
+| **GitHub Issue Forms (`.github/ISSUE_TEMPLATE/*.yml`)** | We already have these. They help if the user reaches GitHub on their own. The point of `:TwFeedback` is to bridge users from "saw an error in nvim" to "issue submitted on GitHub" without leaving the editor first. |
 
 ---
 
@@ -214,7 +214,7 @@ positions at the top level, but `feedback_endpoint` defaults change from
 2. **Hint appends to the error notify message.** Same notification, two lines:
    ```
    [ERROR] taskwarrior.nvim: task export failed: ...
-   Tip: press <leader>tF or :TaskFeedback last-error to report this.
+   Tip: press <leader>tF or :TwFeedback last-error to report this.
    ```
    One per session. Less visually noisy than a second scheduled notify; the user reads the error and the hint together.
 
@@ -226,9 +226,9 @@ positions at the top level, but `feedback_endpoint` defaults change from
 
 4. **WARN+ ring buffer only.** INFO captures would balloon the report with no signal. Decision: stay with WARN+ (existing lean).
 
-5. **`g?` in `:Task` buffers** opens `:TaskFeedback` and prefills the form with sanitized buffer context.
+5. **`g?` in `:Tw` buffers** opens `:TwFeedback` and prefills the form with sanitized buffer context.
 
-   **Sanitization rule for `:Task` buffer lines (the privacy-sensitive part):** Taskwarrior structural tokens are preserved verbatim — the user shares the *shape* of their tasks for debugging, not the *content*. Description text (free-form) has every `[A-Za-z0-9]` character replaced with `a`, preserving length and punctuation so the layout still reproduces the bug.
+   **Sanitization rule for `:Tw` buffer lines (the privacy-sensitive part):** Taskwarrior structural tokens are preserved verbatim — the user shares the *shape* of their tasks for debugging, not the *content*. Description text (free-form) has every `[A-Za-z0-9]` character replaced with `a`, preserving length and punctuation so the layout still reproduces the bug.
 
    Preserved verbatim:
    - Checkbox prefix: `- [ ]`, `- [x]`, `- [>]`

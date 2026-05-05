@@ -9,21 +9,27 @@ local M = {}
 -- their suffix, e.g. setup({ command_prefix = "Tw" }) creates :Tw, :TwFilter,
 -- :TwAdd, … See lua/taskwarrior/config.lua + tests/lua/spec/command_prefix_spec.lua.
 function M.setup(main, complete_filter)
-  local prefix = require("taskwarrior.config").options.command_prefix or "Task"
+  local prefix = require("taskwarrior.config").options.command_prefix or "Tw"
 
   -- Collision detection — emit a single, actionable WARN if our base
-  -- command name (e.g. :Task or :Tw) is already defined by another plugin
-  -- (issue #1: the historical case is Shatur/neovim-tasks's :Task). We
-  -- still proceed with registration (nvim_create_user_command silently
-  -- overrides), since the user may want our :Task to win — but we tell
-  -- them how to opt out via the prefix knob.
+  -- command name (e.g. :Tw) is already defined by another plugin (issue
+  -- #1: the historical case was Shatur/neovim-tasks's :Task before we
+  -- flipped the default to :Tw in v1.4.1). We still proceed with
+  -- registration (nvim_create_user_command silently overrides), since
+  -- the user may want our command to win — but we tell them how to opt
+  -- out via the prefix knob.
+  --
+  -- Pick a suggested-override example that's GUARANTEED not to be the
+  -- current default — otherwise the WARN would suggest "set prefix to
+  -- 'Tw'" to a user whose prefix already IS 'Tw' (no-op).
+  local example = (prefix == "TaskW") and "TwX" or "TaskW"
   local existing = vim.api.nvim_get_commands({})
   if existing[prefix] then
     vim.notify(
       ("taskwarrior.nvim: collision — :%s is already defined by another plugin. "
         .. "If you want both, override our prefix BEFORE the plugin loads:\n"
-        .. "  vim.g.taskwarrior_command_prefix = 'Tw'   -- or any unique prefix\n"
-        .. "or pass command_prefix = 'Tw' to setup(). See issue #1."):format(prefix),
+        .. "  vim.g.taskwarrior_command_prefix = '%s'   -- or any unique prefix\n"
+        .. "or pass command_prefix = '%s' to setup(). See issue #1."):format(prefix, example, example),
       vim.log.levels.WARN
     )
   end

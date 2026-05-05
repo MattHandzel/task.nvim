@@ -1160,7 +1160,10 @@ function M.setup_buf_autocmds(bufnr, on_write_fn)
       local first_line = vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or ""
       if first_line ~= cached and cached:match("^<!%-%-.*taskmd") then
         vim.api.nvim_buf_set_lines(bufnr, 0, 1, false, { cached })
-        vim.notify("taskwarrior.nvim: header is read-only (use :TaskFilter to change filter)", vim.log.levels.WARN)
+        local cfg_ok, cfg = pcall(require, "taskwarrior.config")
+        local cmd = ":" .. ((cfg_ok and cfg.options.command_prefix) or "Tw") .. "Filter"
+        vim.notify("taskwarrior.nvim: header is read-only (use " .. cmd .. " to change filter)",
+          vim.log.levels.WARN)
       end
     end,
   })

@@ -1,13 +1,20 @@
 local M = {}
 
 M.defaults = {
-	-- Prefix for every user command. Default "Task" → :Task, :TaskFilter, …
-	-- Override (issue #1, when conflicting with another plugin like
-	-- Shatur/neovim-tasks): set vim.g.taskwarrior_command_prefix BEFORE
-	-- the plugin loads (lazy.nvim users do this in `init = function() … end`),
-	-- or pass `command_prefix = "Tw"` to setup(). vim.g wins if both are set.
+	-- Prefix for every user command. Default "Tw" → :Tw, :TwFilter, …
+	-- Was "Task" through v1.4.0; flipped to "Tw" in v1.4.1 to resolve the
+	-- collision with Shatur/neovim-tasks (issue #1) which also registers
+	-- :Task. Verified no public Neovim plugin owns bare :Tw or any of our
+	-- :Tw* names. (Note for users with folke/twilight.nvim: that plugin
+	-- registers :Twilight* — different command names, just shares the
+	-- :Tw<Tab> completion menu.)
+	--
+	-- Want the old :Task* commands back? Override BEFORE the plugin loads:
+	--   vim.g.taskwarrior_command_prefix = "Task"
+	-- (lazy.nvim users do this in `init = function() … end`), or pass
+	-- `command_prefix = "Task"` to setup(). vim.g wins if both are set.
 	-- Must be a non-empty string starting with uppercase, letters only.
-	command_prefix = "Task",
+	command_prefix = "Tw",
 	on_delete = "done", -- "done" or "delete" when lines are removed
 	confirm = true, -- show confirmation dialog before applying
 	sort = "urgency-", -- default sort

@@ -286,12 +286,20 @@ local function render_lesson(idx)
 
   local buf = ensure_lesson_buf()
 
+  -- Lesson bodies write `:Task`, `:TaskFeedback`, `:TaskTutor reset` etc.
+  -- as their literal default. Substitute every `:Task` with the configured
+  -- prefix so users running with `command_prefix = "Tw"` (the new v1.4.1
+  -- default) see `:Tw`, `:TwFeedback`, `:TwTutor reset`. Same gsub trick
+  -- as help.lua. No-op when prefix == "Task" (the legacy override).
+  local cfg_prefix = (require("taskwarrior.config").options.command_prefix) or "Task"
+  local function rebrand(line) return (line:gsub(":Task", ":" .. cfg_prefix)) end
+
   -- Build the rendered content: title bar + body + nav line.
   local content = {
     "# " .. lesson.title .. "  (" .. idx .. "/" .. lessons_mod.count() .. ")",
     "",
   }
-  for _, line in ipairs(lesson.body) do table.insert(content, line) end
+  for _, line in ipairs(lesson.body) do table.insert(content, rebrand(line)) end
   table.insert(content, "")
   table.insert(content, string.rep("─", 60))
   local nav = "  <CR> check & advance  |  r retry  |  "
@@ -408,7 +416,11 @@ function M._graduate()
   -- past the last lesson means the user pressed <CR> on graduation.
   M._cleanup()
   vim.notify(
-    "taskwarrior.tutor: tutorial complete! Run :Task to start working with your real data.",
+    -- Use the configured prefix so the suggestion matches whatever
+    -- command name actually exists in the user's session.
+    "taskwarrior.tutor: tutorial complete! Run :"
+      .. (require("taskwarrior.config").options.command_prefix or "Task")
+      .. " to start working with your real data.",
     vim.log.levels.INFO
   )
 end

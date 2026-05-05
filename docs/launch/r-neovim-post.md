@@ -21,7 +21,7 @@ Title rationale: leads with the named-comparison template that's worked repeated
 
 I love [oil.nvim](https://github.com/stevearc/oil.nvim)'s premise — your filesystem is a buffer, every Vim motion is a file operation. I wanted that for my todo list, so I built it on top of Taskwarrior.
 
-`:Task` opens your Taskwarrior database as a markdown buffer:
+`:Tw` opens your Taskwarrior database as a markdown buffer:
 
 - **`<CR>`** toggles a checkbox → `task done` on save
 - **`o`** adds a new task line → `task add` on save
@@ -52,7 +52,7 @@ Install with lazy.nvim:
 }
 ```
 
-Feedback (especially on the conflict-aware save behaviour) very welcome — there's a survey-mode `:TaskFeedback` if you'd rather log it from the plugin. v1.4.0 is the first release I'd call "actually polished"; happy to add what you'd need to make it your daily driver.
+Feedback (especially on the conflict-aware save behaviour) very welcome — there's a survey-mode `:TwFeedback` if you'd rather log it from the plugin. v1.4.0 is the first release I'd call "actually polished"; happy to add what you'd need to make it your daily driver.
 
 ---
 
@@ -64,8 +64,8 @@ Feedback (especially on the conflict-aware save behaviour) very welcome — ther
 >   "matthandzel/taskwarrior.nvim",
 >   dependencies = { "nvim-telescope/telescope.nvim" }, -- optional
 >   keys = {
->     { "<leader>tt", "<cmd>Task<cr>",    desc = "Tasks" },
->     { "<leader>ta", "<cmd>TaskAdd<cr>", desc = "Quick capture" },
+>     { "<leader>tt", "<cmd>Tw<cr>",    desc = "Tasks" },
+>     { "<leader>ta", "<cmd>TwAdd<cr>", desc = "Quick capture" },
 >   },
 >   config = function() require("taskwarrior").setup() end,
 > }

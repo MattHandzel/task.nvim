@@ -18,10 +18,10 @@ Title rationale: lead with "I built" (Reddit prefers builder-first stories), nam
 
 ## Body
 
-I've been a Taskwarrior user for about three years and a Neovim user for longer, and the thing I always wanted was for `:Task` to just open my pending tasks as a buffer I could edit with normal vim motions. So I built it.
+I've been a Taskwarrior user for about three years and a Neovim user for longer, and the thing I always wanted was for `:Tw` to just open my pending tasks as a buffer I could edit with normal vim motions. So I built it.
 
 ```
-:Task                           -- opens all pending tasks as markdown
+:Tw                           -- opens all pending tasks as markdown
 - [ ] Fix login bug project:Work priority:H due:2026-04-01 +urgent
 - [x] Already done!
 ```
@@ -41,7 +41,7 @@ A few Taskwarrior-specific things that mattered to me and might matter to you:
 Repo: https://github.com/MattHandzel/taskwarrior.nvim
 Compatible with Taskwarrior 2.6+ and 3.x. MIT-licensed.
 
-I also wrote a guided weekly-review (`:TaskReview` walks pending tasks in urgency order, single-key actions for keep/defer/done/modify), an inbox triage view (`:TaskInbox`), and a few visualizations (`:TaskBurndown`, `:TaskTree`, `:TaskCalendar`) — all read directly from Taskwarrior, no extra DB.
+I also wrote a guided weekly-review (`:TwReview` walks pending tasks in urgency order, single-key actions for keep/defer/done/modify), an inbox triage view (`:TwInbox`), and a few visualizations (`:TwBurndown`, `:TwTree`, `:TwCalendar`) — all read directly from Taskwarrior, no extra DB.
 
 If you've tried other Neovim+Taskwarrior plugins (ribelo's, neowarrior, m_taskwarrior_d, taskwiki) and bounced off them — would love to know what didn't fit so I can either build it or tell you why I haven't.
 

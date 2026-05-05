@@ -1,5 +1,15 @@
 # Open issue triage + fix plan — 2026-05-02
 
+> **Historical note (2026-05-04 update):** This planning doc was written
+> when the default command prefix was `:Task`. The actual fix (in
+> v1.4.1) flipped the default to `:Tw` rather than shipping a stopgap +
+> proper-fix in two phases. Some references below to "Shatur's :Tw"
+> are sed-mangled from "Shatur's :Task" — Shatur/neovim-tasks still
+> registers `:Task`. Read this doc as a record of how the work was
+> originally scoped, not as the final state.
+
+---
+
 ## Inventory
 
 Two open issues on `MattHandzel/taskwarrior.nvim`:
@@ -51,7 +61,7 @@ local function run(argv)
 end
 ```
 
-Then wherever `run()` callers exist, surface the third return as a `vim.notify(..., vim.log.levels.ERROR)` instead of letting raw output propagate. Need to update at minimum: `taskmd.tw_add`, `taskmd.tw_modify`, `taskmd.tw_done`, `taskmd.tw_delete`, plus the export path that backs `:Task`.
+Then wherever `run()` callers exist, surface the third return as a `vim.notify(..., vim.log.levels.ERROR)` instead of letting raw output propagate. Need to update at minimum: `taskmd.tw_add`, `taskmd.tw_modify`, `taskmd.tw_done`, `taskmd.tw_delete`, plus the export path that backs `:Tw`.
 
 **Layer B — startup-time check.** In `plugin/taskwarrior.lua`, after the `nvim-0.9` check, add:
 
@@ -66,11 +76,11 @@ if vim.fn.executable("task") ~= 1 then
 end
 ```
 
-This means users see a single clear warning at startup instead of a crash on first `:TaskAdd`. Layer A still matters for the case where Taskwarrior is uninstalled *after* nvim launches.
+This means users see a single clear warning at startup instead of a crash on first `:TwAdd`. Layer A still matters for the case where Taskwarrior is uninstalled *after* nvim launches.
 
 ### Test bar
 
-Per `CLAUDE.md` verification rules: must be e2e-tested. Add a spec to `tests/e2e/spec/` that runs nvim with `PATH=/dev/null/no-task:$PATH` (or moves the seeded `task` aside), invokes `:TaskAdd`, and asserts:
+Per `CLAUDE.md` verification rules: must be e2e-tested. Add a spec to `tests/e2e/spec/` that runs nvim with `PATH=/dev/null/no-task:$PATH` (or moves the seeded `task` aside), invokes `:TwAdd`, and asserts:
 - No Vim error trace appears
 - A `vim.notify` ERROR with the expected message fires
 - Plugin doesn't crash; `:q!` exits cleanly
@@ -92,15 +102,15 @@ Two readings: (a) written tutorial, (b) video. Written ships today; video is a l
 Create `docs/tutorial.md` — a 10-minute walkthrough structured as "first session with the plugin":
 
 1. **Install + verify** (`:checkhealth taskwarrior`)
-2. **Your first task** — `:TaskAdd`, type `Try taskwarrior.nvim project:learning`, press Enter, watch it appear in `:Task`
-3. **Edit a task** — open `:Task`, navigate to the line, change `priority:M` to `priority:H` by typing, `:w`, watch the confirmation dialog
+2. **Your first task** — `:TwAdd`, type `Try taskwarrior.nvim project:learning`, press Enter, watch it appear in `:Tw`
+3. **Edit a task** — open `:Tw`, navigate to the line, change `priority:M` to `priority:H` by typing, `:w`, watch the confirmation dialog
 4. **Mark done** — `<CR>` on a line, `:w`, see the task disappear from pending
 5. **Bulk-edit** — visual-select 3 lines, `:s/project:Inbox/project:work/`, `:w`
-6. **Filter** — `:TaskFilter project:work`, `:TaskGroup project`, `:TaskSort due+`
-7. **Save the view** — `:TaskSave morning`, then later `:TaskLoad morning`
+6. **Filter** — `:TwFilter project:work`, `:TwGroup project`, `:TwSort due+`
+7. **Save the view** — `:TwSave morning`, then later `:TwLoad morning`
 8. **Quick capture** — leave any buffer, `<leader>ta`, type a task, Enter, you're back where you were
-9. **Visualize** — `:TaskBurndown`, `:TaskTree`, `:TaskCalendar`
-10. **Clean up** — undoing a save with `:TaskUndo`
+9. **Visualize** — `:TwBurndown`, `:TwTree`, `:TwCalendar`
+10. **Clean up** — undoing a save with `:TwUndo`
 
 Each step has the exact keystrokes, the expected result, and a "what just happened" sentence linking to the relevant `:help taskwarrior-<topic>` tag. Link from the README's existing "Help" section.
 
@@ -116,17 +126,17 @@ Reply to issue #2 with the doc link and offer: *"A video walkthrough is also pla
 
 ### Root cause
 
-`plugin/taskwarrior.lua:38` and `lua/taskwarrior/commands.lua:7` both register `:Task`. `Shatur/neovim-tasks` also registers `:Task` (with subcommands like `:Task start`, `:Task cancel`). Whichever plugin loads second has its registration silently overridden — the user doesn't know which one wins.
+`plugin/taskwarrior.lua:38` and `lua/taskwarrior/commands.lua:7` both register `:Tw`. `Shatur/neovim-tasks` also registers `:Tw` (with subcommands like `:Tw start`, `:Tw cancel`). Whichever plugin loads second has its registration silently overridden — the user doesn't know which one wins.
 
 ### Fix — two layers, ship the stopgap immediately, the proper fix in v1.4.2
 
-**Stopgap (5 min, ship today):** in `plugin/taskwarrior.lua`, before `nvim_create_user_command("Task", ...)`, check whether `:Task` already exists and emit a clear warning instead of silently colliding:
+**Stopgap (5 min, ship today):** in `plugin/taskwarrior.lua`, before `nvim_create_user_command("Task", ...)`, check whether `:Tw` already exists and emit a clear warning instead of silently colliding:
 
 ```lua
 local existing = vim.api.nvim_get_commands({})
 if existing.Task and existing.Task.definition ~= "" then
   vim.notify(
-    "taskwarrior.nvim: :Task already registered by another plugin (likely Shatur/neovim-tasks). " ..
+    "taskwarrior.nvim: :Tw already registered by another plugin (likely Shatur/neovim-tasks). " ..
     "Set `vim.g.taskwarrior_command_prefix = 'Tw'` in your config (before plugin load) to use :Tw* instead. " ..
     "See https://github.com/MattHandzel/taskwarrior.nvim/issues/1",
     vim.log.levels.WARN
@@ -139,17 +149,17 @@ This doesn't fix the conflict but makes it visible and tells the user how to opt
 **Proper fix (~2 hours, v1.4.2):** add a configurable command prefix.
 
 - Add `command_prefix = "Task"` to `lua/taskwarrior/config.lua` defaults
-- Read `vim.g.taskwarrior_command_prefix` at the top of `plugin/taskwarrior.lua` (since the plugin file runs before `setup()`); use it for the lazy `:Task` registration. Default to `"Task"`
+- Read `vim.g.taskwarrior_command_prefix` at the top of `plugin/taskwarrior.lua` (since the plugin file runs before `setup()`); use it for the lazy `:Tw` registration. Default to `"Task"`
 - Refactor `lua/taskwarrior/commands.lua` to read `config.options.command_prefix` and prefix every command name (`Task → <prefix>`, `TaskFilter → <prefix>Filter`, etc.). 40 commands to refactor — mechanical
 - Update `doc/taskwarrior.txt` help tags
 - Update README install section with "If you already use Shatur/neovim-tasks, set `vim.g.taskwarrior_command_prefix = 'Tw'` *before* loading the plugin"
-- E2e test: load plugin with `vim.g.taskwarrior_command_prefix = "Tw"`, verify `:TwAdd` works and `:TaskAdd` doesn't exist
+- E2e test: load plugin with `vim.g.taskwarrior_command_prefix = "Tw"`, verify `:TwAdd` works and `:TwAdd` doesn't exist
 
 ### Effort: 5 min (stopgap) + ~2 hr (proper fix with tests)
 
 ### Why not rename outright?
 
-Renaming `:Task*` → `:Tw*` (or similar) by default would break every existing user's keymaps, slash-commands, and muscle memory. Backward-compatibility cost is real. The configurable-prefix path keeps existing users unbroken while letting collision-affected users opt out.
+Renaming `:Tw*` → `:Tw*` (or similar) by default would break every existing user's keymaps, slash-commands, and muscle memory. Backward-compatibility cost is real. The configurable-prefix path keeps existing users unbroken while letting collision-affected users opt out.
 
 ---
 

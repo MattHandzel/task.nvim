@@ -54,25 +54,45 @@ assertions, all green.
   - Nothing auto-sends; every action is an explicit choice in the
     post-`:w` prompt.
 
-### Added — configurable command prefix (issue #1)
+### Changed — DEFAULT COMMAND PREFIX FLIPPED (BREAKING for v1.4.0 users)
 
-- **`vim.g.taskwarrior_command_prefix`** (or
-  `setup({ command_prefix = "Tw" })`) renames every `:Task*` command
-  to `:Tw*`. Resolves the conflict with
+- **Default `command_prefix` is now `"Tw"`** (was `"Task"` through
+  v1.4.0). Every command renames: `:Task` → `:Tw`, `:TaskAdd` →
+  `:TwAdd`, `:TaskFilter` → `:TwFilter`, `:TaskTutor` → `:TwTutor`,
+  etc. (40 commands total.) Resolves the collision with
   [Shatur/neovim-tasks](https://github.com/Shatur/neovim-tasks) which
-  also registers `:Task`. Default `"Task"` preserves backward
-  compatibility — existing users see no change.
-- **Collision detection.** `setup()` scans for an existing
-  `:<prefix>` and emits one clear WARN that names the override
-  mechanism. No silent override.
-- Lazy.nvim install snippet for users who already have Shatur:
+  also registers `:Task` (issue #1).
+- **Want the old `:Task*` commands back?** Override before plugin load:
   ```lua
   {
     "matthandzel/taskwarrior.nvim",
-    init = function() vim.g.taskwarrior_command_prefix = "Tw" end,
+    init = function() vim.g.taskwarrior_command_prefix = "Task" end,
     config = function() require("taskwarrior").setup() end,
   }
   ```
+- The `:Tw` namespace was verified safe before flipping: a public-
+  plugin survey found no Neovim plugin owning bare `:Tw` or any of
+  the 40 `:Tw*` names. The only adjacent plugin is folke/twilight.nvim
+  which uses `:Twilight*` — different command names, just shares the
+  `:Tw<Tab>` completion menu.
+- **Collision detection.** `setup()` scans for an existing
+  `:<prefix>` and emits one clear WARN that names the override
+  mechanism. No silent override. Suggests `'TaskW'` as an example
+  override (avoiding `'Tw'`/`'Task'` since those are the meaningful
+  defaults).
+
+### Added — configurable command prefix (issue #1)
+
+- **`vim.g.taskwarrior_command_prefix`** and
+  `setup({ command_prefix = "..." })` accept any string matching
+  `^[A-Z][A-Za-z]*$`. vim.g wins if both are set (it's the only path
+  that affects the lazy entrypoint in `plugin/taskwarrior.lua`, which
+  runs before `setup()`).
+- Help text in `:TwHelp`, lesson bodies in `:TwTutor`, the buffer-
+  header read-only WARN, the error-notify hint, the feedback form
+  preamble — all now interpolate the configured prefix at render
+  time. No user-visible string lies about which command name to
+  invoke.
 
 ### Fixed
 

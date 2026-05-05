@@ -117,7 +117,13 @@ local function maybe_append_hint(msg, level)
   -- Append on a new line so the hint reads as a distinct callout, not a
   -- continuation of the error message itself. Keep it short — users see
   -- it at most once.
-  return msg .. "\nTip: press <leader>tF or :TaskFeedback last-error to report this."
+  -- Use the configured command prefix so the suggested command name
+  -- matches what the user actually has registered. Default since v1.4.1
+  -- is "Tw" so this normally suggests `:TwFeedback last-error`.
+  local ok, config = pcall(require, "taskwarrior.config")
+  local prefix = (ok and config.options.command_prefix) or "Tw"
+  return msg .. "\nTip: press <leader>tF or :"
+    .. prefix .. "Feedback last-error to report this."
 end
 
 local function dispatch(cat, msg, level)

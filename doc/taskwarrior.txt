@@ -60,92 +60,92 @@ Migrating from task.nvim ~
 This plugin was previously published as `MattHandzel/task.nvim`. If you
 were running v1.2.x or earlier, update your plugin spec to the new repo
 name and replace `require("task")` with `require("taskwarrior")` in your
-configuration. The `:Task*` commands and the `taskmd` filetype are
+configuration. The `:Tw*` commands and the `taskmd` filetype are
 unchanged. Saved views, registered project mappings, and apply backups
 are migrated automatically the first time the plugin loads.
 
 ==============================================================================
 4. QUICK START                                            *taskwarrior-quickstart*
 
-    :Task                          open all pending tasks
-    :Task project:career           filter
-    :Task due.before:eow           tasks due this week
+    :Tw                          open all pending tasks
+    :Tw project:career           filter
+    :Tw due.before:eow           tasks due this week
 
 Edit any line. `:w` to sync. That is the whole loop.
 
 ==============================================================================
 5. COMMANDS                                                *taskwarrior-commands*
 
-                                                                    *:Task*
-:Task [filter]          Open task buffer with optional filter.
+                                                                    *:Tw*
+:Tw [filter]          Open task buffer with optional filter.
 
-                                                              *:TaskFilter*
-:TaskFilter [filter]    Change filter on the current buffer.
+                                                              *:TwFilter*
+:TwFilter [filter]    Change filter on the current buffer.
 
-                                                                *:TaskSort*
-:TaskSort <spec>        Change sort order. Examples: `due+`, `urgency-`,
+                                                                *:TwSort*
+:TwSort <spec>        Change sort order. Examples: `due+`, `urgency-`,
                         `priority-`.
 
-                                                               *:TaskGroup*
-:TaskGroup [field]      Group by a field (`project`, `tag`) or `none` to
+                                                               *:TwGroup*
+:TwGroup [field]      Group by a field (`project`, `tag`) or `none` to
                         disable grouping.
 
-                                                             *:TaskRefresh*
-:TaskRefresh            Reload from Taskwarrior.
+                                                             *:TwRefresh*
+:TwRefresh            Reload from Taskwarrior.
 
-                                                                 *:TaskAdd*
-:TaskAdd                Quick-capture a task in a floating window. Supports
+                                                                 *:TwAdd*
+:TwAdd                Quick-capture a task in a floating window. Supports
                         inline fields: `Fix bug project:work priority:H +x`.
 
-                                                                *:TaskUndo*
-:TaskUndo               Reverse the last save. Best-effort — operations
+                                                                *:TwUndo*
+:TwUndo               Reverse the last save. Best-effort — operations
                         Taskwarrior can't reverse (e.g. `task delete` on a
                         UUID) are reported as errors.
 
-                                                                *:TaskHelp*
-:TaskHelp               Show an in-buffer help reference.
+                                                                *:TwHelp*
+:TwHelp               Show an in-buffer help reference.
 
-                                                               *:TaskStart*
-                                                                *:TaskStop*
-:TaskStart / :TaskStop  Mark the task under the cursor as active/inactive.
+                                                               *:TwStart*
+                                                                *:TwStop*
+:TwStart / :TwStop  Mark the task under the cursor as active/inactive.
                         Active tasks render with a `[>]` checkbox.
 
-                                                                *:TaskSave*
-                                                                *:TaskLoad*
-:TaskSave <name>        Save the current filter+sort+group as a named view.
-:TaskLoad [name]        Load a saved view (tab-completes).
+                                                                *:TwSave*
+                                                                *:TwLoad*
+:TwSave <name>        Save the current filter+sort+group as a named view.
+:TwLoad [name]        Load a saved view (tab-completes).
 
-                                                              *:TaskReview*
-:TaskReview             Guided urgency walk. For each pending task: `k`
+                                                              *:TwReview*
+:TwReview             Guided urgency walk. For each pending task: `k`
                         keep, `d` defer, `D` done, `m` modify, `g` go, `q`
                         quit.
 
-                                                            *:TaskDelegate*
-:TaskDelegate           Delegate task(s) to Claude. See |taskwarrior-delegate|.
+                                                            *:TwDelegate*
+:TwDelegate           Delegate task(s) to Claude. See |taskwarrior-delegate|.
 
-                                                         *:TaskDiffPreview*
-:TaskDiffPreview [on|off|toggle]
+                                                         *:TwDiffPreview*
+:TwDiffPreview [on|off|toggle]
                         Toggle live virt-text diff annotations.
 
-                                                            *:TaskBurndown*
-                                                                *:TaskTree*
-                                                             *:TaskSummary*
-                                                            *:TaskCalendar*
-                                                                *:TaskTags*
+                                                            *:TwBurndown*
+                                                                *:TwTree*
+                                                             *:TwSummary*
+                                                            *:TwCalendar*
+                                                                *:TwTags*
 Visualisation commands. See |taskwarrior-views|.
 
-                                                          *:TaskProjectAdd*
-                                                       *:TaskProjectRemove*
-                                                         *:TaskProjectList*
-:TaskProjectAdd [name]   Register cwd as a project (see |taskwarrior-projects|).
-:TaskProjectRemove       Unregister cwd.
-:TaskProjectList         List all mappings.
+                                                          *:TwProjectAdd*
+                                                       *:TwProjectRemove*
+                                                         *:TwProjectList*
+:TwProjectAdd [name]   Register cwd as a project (see |taskwarrior-projects|).
+:TwProjectRemove       Unregister cwd.
+:TwProjectList         List all mappings.
 
-                                                            *:TaskFeedback*
-                                                 *:TaskFeedback-last-error*
+                                                            *:TwFeedback*
+                                                 *:TwFeedback-last-error*
                                                        *taskwarrior-feedback*
-:TaskFeedback           Open the structured bug-report form. Default
-:TaskFeedback last-error      config: GitHub-issue and clipboard paths
+:TwFeedback           Open the structured bug-report form. Default
+:TwFeedback last-error      config: GitHub-issue and clipboard paths
                         always available; HTTP "Send" only shown when
                         `feedback_endpoint` is configured.
 
@@ -156,7 +156,7 @@ Visualisation commands. See |taskwarrior-views|.
 
                         Privacy:
                           * task descriptions never leave your machine —
-                            the optional g? capture (inside :Task
+                            the optional g? capture (inside :Tw
                             buffers) replaces description alphanumerics
                             with the literal `a`, preserving structural
                             tokens (project:, +tag, due:, ...) and
@@ -178,42 +178,42 @@ Visualisation commands. See |taskwarrior-views|.
                             feedback_key   = false,
                           }
 
-                        See also: `g?` keymap inside :Task buffers
+                        See also: `g?` keymap inside :Tw buffers
                         opens this form prefilled with the active
                         filter / sort / group plus a sanitized snapshot
                         of ~50 lines around your cursor.
 
-                                                              *:TaskAppend*
-                                                             *:TaskPrepend*
-:TaskAppend [text]      Append text to the description of the task under the
-:TaskPrepend [text]     cursor. Without args, prompts for input. Buffer
+                                                              *:TwAppend*
+                                                             *:TwPrepend*
+:TwAppend [text]      Append text to the description of the task under the
+:TwPrepend [text]     cursor. Without args, prompts for input. Buffer
                         keymaps `>>` and `<<`.
 
-                                                           *:TaskDuplicate*
-:TaskDuplicate          Duplicate the task under the cursor (fresh UUID,
+                                                           *:TwDuplicate*
+:TwDuplicate          Duplicate the task under the cursor (fresh UUID,
                         status=pending, same project/tags/due). Buffer
                         keymap `yt`.
 
-                                                               *:TaskPurge*
-:TaskPurge [filter]     Irreversibly drop tasks from the database. Without
+                                                               *:TwPurge*
+:TwPurge [filter]     Irreversibly drop tasks from the database. Without
                         args, purges the task on the cursor (if it's
                         deleted) or prompts for a filter. Confirms before
                         acting. Buffer keymap `dD`.
 
-                                                            *:TaskDenotate*
-:TaskDenotate           Remove an annotation from the task under the cursor.
+                                                            *:TwDenotate*
+:TwDenotate           Remove an annotation from the task under the cursor.
                         If the task has more than one annotation, prompts
                         for which to remove. Buffer keymap `gA`.
 
-                                                         *:TaskModifyField*
-:TaskModifyField <name> Pick a new value for a single field of the task under
+                                                         *:TwModifyField*
+:TwModifyField <name> Pick a new value for a single field of the task under
                         the cursor. Known fields: `project`, `priority`,
                         `due`, `tag`. Falls back to free-form input for
                         anything else. Also accessible via buffer keymaps
                         `MM` (project), `Mp` (priority), `MD` (due),
                         `Mt` (tag).
 
-                                                         *:TaskBulkModify*
+                                                         *:TwBulkModify*
 :'<,'>TaskBulkModify <spec>
                         Apply the same modify spec to every task in the
                         selected range. Each task is modified in its own
@@ -221,69 +221,75 @@ Visualisation commands. See |taskwarrior-views|.
                         prompt is sidestepped. Example: >
                             :'<,'>TaskBulkModify +triage
 <
-                                                              *:TaskReport*
-:TaskReport [name]      Open a named Taskwarrior report. Built-in reports:
+                                                              *:TwReport*
+:TwReport [name]      Open a named Taskwarrior report. Built-in reports:
                         `next`, `active`, `overdue`, `recurring`, `waiting`,
                         `unblocked`, `ready`, `blocked`, `completed`,
                         `today`, `week`, `noproject`. Without args, opens a
                         selection prompt.
 
-                                                               *:TaskGraph*
-:TaskGraph              Render the `depends:` graph of pending tasks as a
+                                                               *:TwGraph*
+:TwGraph              Render the `depends:` graph of pending tasks as a
                         Mermaid flowchart in a markdown buffer.
 
-                                                               *:TaskInbox*
-:TaskInbox              Walk tasks added in the last 24h with no project, no
+                                                               *:TwInbox*
+:TwInbox              Walk tasks added in the last 24h with no project, no
                         due date, and no tags. For each: set project,
                         schedule, tag, defer, drop, skip, or quit.
 
-                                                              *:TaskExport*
-:TaskExport [path]      Write the current task buffer out as plain markdown
+                                                              *:TwExport*
+:TwExport [path]      Write the current task buffer out as plain markdown
                         (UUIDs stripped, header comment removed). Useful for
                         archival or sharing.
 
-                                                                *:TaskSync*
-:TaskSync               Run `task sync` asynchronously with progress and
+                                                                *:TwSync*
+:TwSync               Run `task sync` asynchronously with progress and
                         error reporting. Offers a retry on failure.
 
-                                                               *:TaskFloat*
-:TaskFloat [filter]     Open the task buffer in a centered floating window
+                                                               *:TwFloat*
+:TwFloat [filter]     Open the task buffer in a centered floating window
                         instead of a split. `q` to dismiss.
 
-                                                       *:TaskLinkChildren*
-                                                     *:TaskUnlinkChildren*
-:TaskLinkChildren       Treat tasks indented directly below the cursor task
-                        as `depends:` of it. Inverse: :TaskUnlinkChildren
+                                                       *:TwLinkChildren*
+                                                     *:TwUnlinkChildren*
+:TwLinkChildren       Treat tasks indented directly below the cursor task
+                        as `depends:` of it. Inverse: :TwUnlinkChildren
                         drops those same dependencies.
 
-                                                       *:TaskQueryRefresh*
-:TaskQueryRefresh       Re-render every `<!-- taskmd query: ... -->` block
+                                                       *:TwQueryRefresh*
+:TwQueryRefresh       Re-render every `<!-- taskmd query: ... -->` block
                         in the current buffer. Blocks also refresh
                         automatically on BufReadPost / BufWritePost of
                         `*.md` / `*.markdown` buffers.
 
                                                        *taskwarrior-prefix*
 
-All :Task* command names share a prefix (default "Task"). Configure with:
+All :Tw* command names share a prefix (default "Tw" since v1.4.1; was
+"Task" through v1.4.0). Configure with:
 
-    vim.g.taskwarrior_command_prefix = "Tw"   " before plugin loads
+    vim.g.taskwarrior_command_prefix = "Task"  " before plugin loads
     -- or --
-    require("taskwarrior").setup({ command_prefix = "Tw" })
+    require("taskwarrior").setup({ command_prefix = "Task" })
 
 vim.g wins if both are set (it's the only mechanism that affects the lazy
-:Task entrypoint registered by plugin/taskwarrior.lua, which runs before
+:Tw entrypoint registered by plugin/taskwarrior.lua, which runs before
 setup()). Lazy.nvim users: put it in the `init = function() … end` block.
 
+The default flipped from "Task" → "Tw" in v1.4.1 to resolve the collision
+with Shatur/neovim-tasks (issue #1) which also registers :Task. Public
+plugin survey verified no conflict on the :Tw namespace; only adjacent
+plugin is folke/twilight.nvim which uses :Twilight* (different command
+names, just shares the :Tw<Tab> completion menu).
+
 The plugin emits one WARN at startup if `:<prefix>` is already defined by
-another plugin (issue #1 — historical case: Shatur/neovim-tasks's :Task).
-The override takes effect immediately on next nvim start.
+another plugin. The override takes effect immediately on next nvim start.
 
 Prefix must match `^[A-Z][A-Za-z]*$` (Vim command names need leading
 uppercase; we additionally require letters only so the suffix concatenation
 produces a valid command name).
 
-                                                              *:TaskTutor*
-:TaskTutor              Open the interactive tutorial. A 5-lesson, ~20-
+                                                              *:TwTutor*
+:TwTutor              Open the interactive tutorial. A 5-lesson, ~20-
                         minute walkthrough that teaches the Taskwarrior
                         CLI from scratch and graduates you into the
                         plugin's buffer-as-database UX. Fully sandboxed:
@@ -307,8 +313,8 @@ produces a valid command name).
                         tests/lua/spec/tutor_isolation_spec.lua and
                         tests/lua/spec/tutor_lessons_spec.lua.
 
-                                                       *:TaskTutor-reset*
-:TaskTutor reset        End any active tutor session and scan /tmp for
+                                                       *:TwTutor-reset*
+:TwTutor reset        End any active tutor session and scan /tmp for
                         orphan `*_tw_tutor` directories left behind by
                         prior crashes. Safe to run any time.
 
@@ -327,17 +333,17 @@ Buffer-local (inside a task buffer): ~
                         `on_delete`).
     yy + p              Duplicate a task (native vim; see also `yt`).
     ga                  Annotate the task under the cursor.
-    gA                  Remove an annotation (|:TaskDenotate|).
+    gA                  Remove an annotation (|:TwDenotate|).
     gm                  Modify fields via free-form input.
     gf                  Show `task info` in a bordered float (`q` / <Esc>
                         to dismiss).
-    MM / MP             Pick a project from existing ones (|:TaskModifyField|).
+    MM / MP             Pick a project from existing ones (|:TwModifyField|).
     Mp                  Pick priority: H / M / L / (clear).
     MD                  Pick due date: today / tomorrow / eow / custom…
     Mt                  Pick tag from existing ones (or add a custom).
-    >>                  Append to description (|:TaskAppend|).
-    <<                  Prepend to description (|:TaskPrepend|).
-    yt                  Duplicate task (|:TaskDuplicate|).
+    >>                  Append to description (|:TwAppend|).
+    <<                  Prepend to description (|:TwPrepend|).
+    yt                  Duplicate task (|:TwDuplicate|).
     dD                  Purge task (irreversible, confirms).
     <leader>tf          Change filter interactively.
     <leader>ts          Change sort interactively.
@@ -561,7 +567,7 @@ fires when tasks are auto-stopped unless `notify_on_stop = false`.
                                                        *taskwarrior-reports*
 Named reports ~
 
-`:TaskReport <name>` opens the Taskwarrior report named `<name>`:
+`:TwReport <name>` opens the Taskwarrior report named `<name>`:
 
     next         status:pending, sorted by urgency
     active       currently started (+ACTIVE)
@@ -586,36 +592,36 @@ block: >
     <!-- taskmd endquery -->
 <
 Blocks refresh on BufReadPost / BufWritePost, and on demand via
-`:TaskQueryRefresh`. The block body is read-only — to edit a task, open
-`:Task <filter>` (or use the Telescope picker). Multiple blocks per buffer
+`:TwQueryRefresh`. The block body is read-only — to edit a task, open
+`:Tw <filter>` (or use the Telescope picker). Multiple blocks per buffer
 are supported.
 
 ==============================================================================
 9. VIEWS                                                      *taskwarrior-views*
 
-:TaskBurndown       ASCII burndown — pending-task count by day.
-:TaskTree           Dependency tree of `depends:` relationships.
-:TaskSummary        Per-project counts + horizontal bar chart.
-:TaskCalendar       Tasks grouped by due date.
-:TaskTags           Tag frequency.
+:TwBurndown       ASCII burndown — pending-task count by day.
+:TwTree           Dependency tree of `depends:` relationships.
+:TwSummary        Per-project counts + horizontal bar chart.
+:TwCalendar       Tasks grouped by due date.
+:TwTags           Tag frequency.
 
 All read from `task export` — no external charting tools.
 
 ==============================================================================
 10. SAVED VIEWS                                        *taskwarrior-saved-views*
 
-`:TaskSave <name>` persists the current filter+sort+group to >
+`:TwSave <name>` persists the current filter+sort+group to >
 
     stdpath("data")/taskwarrior.nvim/saved-views.json
 <
-`:TaskLoad [name]` restores one. `:TaskLoad` without arguments shows a
+`:TwLoad [name]` restores one. `:TwLoad` without arguments shows a
 picker. Tab-completion on names.
 
 ==============================================================================
 11. PROJECT AUTO-FILTER                                   *taskwarrior-projects*
 
-`:TaskProjectAdd career` (run inside `~/projects/career-dev/`) maps the
-current directory to `project:career`. Subsequent `:Task` with no filter,
+`:TwProjectAdd career` (run inside `~/projects/career-dev/`) maps the
+current directory to `project:career`. Subsequent `:Tw` with no filter,
 when invoked from inside that directory, auto-applies `project:career`.
 
 Persists to `stdpath("data")/taskwarrior_nvim_projects.json`.
@@ -623,10 +629,10 @@ Persists to `stdpath("data")/taskwarrior_nvim_projects.json`.
 ==============================================================================
 12. DELEGATION                                             *taskwarrior-delegate*
 
-`:TaskDelegate` opens a popup (context, flags, model, system-prompt-file)
+`:TwDelegate` opens a popup (context, flags, model, system-prompt-file)
 and runs the configured `delegate.command` in a visible bottom split.
 
-Visual-range support: select multiple task lines and run `:TaskDelegate` to
+Visual-range support: select multiple task lines and run `:TwDelegate` to
 delegate them all in one session.
 
 Sub-commands: ~
@@ -695,7 +701,7 @@ editors other than Neovim.
 16. TROUBLESHOOTING                                 *taskwarrior-troubleshooting*
 
 Error "Not allowed to change text or change window" when submitting
-:TaskAdd with nvim-cmp installed ~
+:TwAdd with nvim-cmp installed ~
 
     Fixed in the current version. If it recurs, reload the plugin
     (`:Lazy reload taskwarrior.nvim`) and file a bug with the stack trace.
@@ -712,7 +718,7 @@ Swap-file warnings when reopening a task buffer ~
 
 Completion popup doesn't appear ~
 
-    :TaskAdd uses omnifunc. Press <C-x><C-o> manually; <Tab> is
+    :TwAdd uses omnifunc. Press <C-x><C-o> manually; <Tab> is
     pre-wired to trigger it. If nothing appears, run `:checkhealth taskwarrior`
     to confirm Taskwarrior is reachable.
 
@@ -766,7 +772,7 @@ dashboard.nvim: >
       custom_section = {
         tasks = {
           description = require("taskwarrior.dashboard").top_urgent(5),
-          command = ":Task",
+          command = ":Tw",
         },
       },
     })

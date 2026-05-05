@@ -13,7 +13,7 @@
 ![hero demo: bulk-edit priorities with a substitute, save, watch them apply](demo/assets/hero.gif)
 
 ```
-:Task                                   -- open all pending tasks
+:Tw                                   -- open all pending tasks
 V20j:s/project:Inbox/project:career/    -- reassign 20 tasks
 dd                                      -- mark task done
 o                                       -- add new task inline
@@ -22,15 +22,15 @@ o                                       -- add new task inline
 
 ## ✨ Features
 
-- 📝 **Edit as markdown** — `:Task` opens your Taskwarrior database as a buffer; every vim motion is a task operation
+- 📝 **Edit as markdown** — `:Tw` opens your Taskwarrior database as a buffer; every vim motion is a task operation
 - 🔁 **Bulk edits via `:s///`** — visual-select 20 tasks, substitute the project, `:w` applies them all in one round-trip
 - 🛡️ **Conflict-aware save** — diffs your edits against fresh Taskwarrior state on every `:w`; external `task add` / `task modify` between render and save is preserved, not clobbered
 - ⚡ **Quick capture from any buffer** — `<leader>ta` floats a one-line capture in any buffer
 - 🔍 **Live query blocks in arbitrary markdown** — `<!-- taskmd query: due.before:eow -->` renders matching tasks below it on save; embed live task lists in your project's `notes.md`
 - 📊 **Built-in visualizations** — burndown, dependency tree, per-project summary, calendar, tag frequency, Mermaid graph
-- 🎯 **Guided review + GTD inbox** — `:TaskReview` walks pending tasks in urgency order; `:TaskInbox` triages new captures
-- 🤖 **Delegate to Claude** — `:TaskDelegate` opens a popup form and runs the task as a Claude prompt in a bottom split
-- 🎓 **Interactive tutor** — `:TaskTutor` teaches Taskwarrior + the plugin from scratch in 20 minutes, fully sandboxed (your real `~/.task` is never touched)
+- 🎯 **Guided review + GTD inbox** — `:TwReview` walks pending tasks in urgency order; `:TwInbox` triages new captures
+- 🤖 **Delegate to Claude** — `:TwDelegate` opens a popup form and runs the task as a Claude prompt in a bottom split
+- 🎓 **Interactive tutor** — `:TwTutor` teaches Taskwarrior + the plugin from scratch in 20 minutes, fully sandboxed (your real `~/.task` is never touched)
 - 🚀 **Pure-Lua hot path, zero runtime deps** — optional Python CLI in `bin/taskmd` for scripting and pipelines
 - 🧪 **480+ tests** — Python CLI, Lua backend, end-to-end against a real `task` binary including external-write conflict scenarios
 
@@ -52,24 +52,24 @@ o                                       -- add new task inline
 }
 ```
 
-> **Already use [Shatur/neovim-tasks](https://github.com/Shatur/neovim-tasks) (or any other plugin that registers `:Task`)?** Override our prefix before the plugin loads:
+> **Want the old `:Task*` commands back?** (E.g., you have keymaps to `:TaskAdd` from before v1.4.1, when `:Task` was the default.) Override our prefix before the plugin loads:
 >
 > ```lua
 > {
 >   "matthandzel/taskwarrior.nvim",
->   init = function() vim.g.taskwarrior_command_prefix = "Tw" end,
+>   init = function() vim.g.taskwarrior_command_prefix = "Task" end,
 >   config = function() require("taskwarrior").setup() end,
 > }
 > ```
 >
-> Now every command is `:Tw*` (`:Tw`, `:TwFilter`, `:TwInbox`, …) and Shatur's `:Task` keeps working. The plugin emits a one-shot WARN at startup if it detects a collision so you'll know to override.
+> The default flipped from `:Task` to `:Tw` in v1.4.1 to resolve a collision with [Shatur/neovim-tasks](https://github.com/Shatur/neovim-tasks) which also registers `:Task`. The `command_prefix` accepts any uppercase-leading letter-only string, so you can also pick something else (`:Tk`, `:TaskW`, etc.). The plugin emits a one-shot WARN at startup if it detects the configured prefix colliding with another plugin.
 
 ## 🚀 Quick start
 
 ```
-:Task                          -- view all pending tasks
-:Task project:career +ais      -- filter
-:Task due.before:eow           -- tasks due this week
+:Tw                          -- view all pending tasks
+:Tw project:career +ais      -- filter
+:Tw due.before:eow           -- tasks due this week
 ```
 
 Edit any line. `:w` to sync. That's it.
@@ -77,12 +77,12 @@ Edit any line. `:w` to sync. That's it.
 ## 🎓 New to Taskwarrior? Run the tutor
 
 ```
-:TaskTutor
+:TwTutor
 ```
 
 A 5-lesson, ~20-minute interactive walkthrough that teaches the Taskwarrior CLI from scratch and graduates you into the plugin's buffer-as-database UX. Fully sandboxed — every command runs against a throwaway DB in `/tmp`, your real `~/.task` and `~/.taskrc` are never touched. The tutor cleans up after itself when you finish, quit (`q`), or close the buffer.
 
-Prefer video? Andrew Dumont's [Taskwarrior intro on YouTube](https://www.youtube.com/watch?v=5wmcn9-IQE4) is a great 8-minute primer; come back to `:TaskTutor` after.
+Prefer video? Andrew Dumont's [Taskwarrior intro on YouTube](https://www.youtube.com/watch?v=5wmcn9-IQE4) is a great 8-minute primer; come back to `:TwTutor` after.
 
 If `task` is missing on your system, the tutor's first lesson points you at the right install command for your package manager. Or run `:checkhealth taskwarrior` to verify your environment.
 
@@ -90,16 +90,16 @@ If `task` is missing on your system, the tutor's first lesson points you at the 
 
 The tutor runs every `task` command with `rc.data.location=<temp>` and `rc.hooks=off`, and the `[Tutor shell]` terminal split spawns `bash --norc --noprofile` with `TASKDATA`/`TASKRC` env scoped to the temp dir. The structural invariants are tested in [`tests/lua/spec/tutor_isolation_spec.lua`](tests/lua/spec/tutor_isolation_spec.lua) and [`tests/lua/spec/tutor_lessons_spec.lua`](tests/lua/spec/tutor_lessons_spec.lua) — together they make it impossible for a future code change to silently bypass the sandbox.
 
-`:TaskTutor reset` ends an active session and cleans up any orphan temp dirs left by a prior crash.
+`:TwTutor reset` ends an active session and cleans up any orphan temp dirs left by a prior crash.
 
 ## Compared to other Neovim Taskwarrior plugins
 
 | Plugin | Approach | Where this plugin differs |
 |---|---|---|
-| [m_taskwarrior_d.nvim](https://github.com/huantrinh1802/m_taskwarrior_d.nvim) | Sync `- [ ]` checkboxes embedded in your existing markdown notes | This plugin gives you a **dedicated buffer** for the database itself; pure-Lua render path (no per-task shell spawn freeze); conflict-aware diff; ships `:TaskTutor` |
-| [neowarrior.nvim](https://github.com/duckdm/neowarrior.nvim) | Sidebar TUI with tree views, named reports, per-cwd configs | This plugin treats the database as a **buffer you edit with vim motions**, not a TUI you navigate with custom keys; picker-agnostic (works without Telescope); ships `:TaskTutor` |
-| [ribelo/taskwarrior.nvim](https://github.com/ribelo/taskwarrior.nvim) | Telescope picker + per-project `.taskwarrior.json` auto time-tracking | This plugin is markdown-buffer first; Telescope is an optional layer, not the primary UI; actively maintained; ships `:TaskTutor` |
-| [TaskWiki](https://github.com/tools-life/taskwiki) | Vimwiki extension with task-syntax checkboxes | This plugin is Neovim-native (no vimwiki dep), supports Taskwarrior 3.x, ships an automated test suite, and ships `:TaskTutor` |
+| [m_taskwarrior_d.nvim](https://github.com/huantrinh1802/m_taskwarrior_d.nvim) | Sync `- [ ]` checkboxes embedded in your existing markdown notes | This plugin gives you a **dedicated buffer** for the database itself; pure-Lua render path (no per-task shell spawn freeze); conflict-aware diff; ships `:TwTutor` |
+| [neowarrior.nvim](https://github.com/duckdm/neowarrior.nvim) | Sidebar TUI with tree views, named reports, per-cwd configs | This plugin treats the database as a **buffer you edit with vim motions**, not a TUI you navigate with custom keys; picker-agnostic (works without Telescope); ships `:TwTutor` |
+| [ribelo/taskwarrior.nvim](https://github.com/ribelo/taskwarrior.nvim) | Telescope picker + per-project `.taskwarrior.json` auto time-tracking | This plugin is markdown-buffer first; Telescope is an optional layer, not the primary UI; actively maintained; ships `:TwTutor` |
+| [TaskWiki](https://github.com/tools-life/taskwiki) | Vimwiki extension with task-syntax checkboxes | This plugin is Neovim-native (no vimwiki dep), supports Taskwarrior 3.x, ships an automated test suite, and ships `:TwTutor` |
 
 The interactive tutor is unique to this plugin — no other Neovim Taskwarrior integration ships one.
 
@@ -112,7 +112,7 @@ The interactive tutor is unique to this plugin — no other Neovim Taskwarrior i
 
 ![filter and group demo](demo/assets/filter-group.gif)
 
-`:TaskFilter project.startswith:work` narrows to a project. `:TaskGroup project` splits the buffer into `## sections`. `:TaskSort due+` re-sorts within groups. None of this touches your Taskwarrior database — only the view.
+`:TwFilter project.startswith:work` narrows to a project. `:TwGroup project` splits the buffer into `## sections`. `:TwSort due+` re-sorts within groups. None of this touches your Taskwarrior database — only the view.
 
 ### Quick-capture from any buffer
 
@@ -120,53 +120,53 @@ The interactive tutor is unique to this plugin — no other Neovim Taskwarrior i
 
 `<leader>ta` pops a floating window in any buffer. Type `Fix auth bug project:work priority:H`, press Enter, go back to what you were doing. The task is in Taskwarrior before your hand leaves the keyboard.
 
-### `:TaskBurndown` — completion trend over time
+### `:TwBurndown` — completion trend over time
 
 ![burndown chart](demo/assets/burndown.png)
 
 ASCII bar chart of pending-task count by date. Reads `entry` and `end` dates from every task you've ever created, samples to fit the buffer width, color-codes by remaining height (red high → green low). Useful for "am I actually closing tasks faster than I'm opening them?"
 
-### `:TaskTree` — dependency graph
+### `:TwTree` — dependency graph
 
 ![dependency tree](demo/assets/tree.png)
 
 Renders `depends:` relationships as an indented tree. Top-level tasks are roots; `└──` and `├──` connectors show parentage. Urgency score on the right is color-coded (red ≥8, orange ≥4, green below). Dead-simple way to find the leaf tasks that are unblocking everything else.
 
-### `:TaskSummary` — per-project stats
+### `:TwSummary` — per-project stats
 
 ![project summary](demo/assets/summary.png)
 
 For each project: pending count, done count, overdue count, high-priority count, and a horizontal bar. Bar color is red if any task is overdue, orange if any is high-priority, blue otherwise. Footer shows total completion rate.
 
-### `:TaskCalendar` — by due date
+### `:TwCalendar` — by due date
 
 ![calendar view](demo/assets/calendar.png)
 
 Pending tasks grouped by due date, ordered chronologically. Today is marked `← TODAY`, overdue dates marked `⚠ OVERDUE`. Tasks under each date show priority (`!H`/`!M`/`!L`) and project (`@name`).
 
-### `:TaskTags` — tag frequency
+### `:TwTags` — tag frequency
 
 ![tags view](demo/assets/tags.png)
 
 Every tag on every pending task with a count and frequency bar. Quick way to see which tags you're actually using vs. which were one-offs.
 
-### `:TaskReview` — guided urgency walk
+### `:TwReview` — guided urgency walk
 
 ![guided review walkthrough](demo/assets/review.gif)
 
 Walks pending tasks in urgency order. For each task: `k` keep, `d` defer, `D` mark done, `m` modify, `g` jump to it in the main buffer, `q` quit. Useful for the "weekly tidy" pass where you want to look at every urgent task and decide what to do with it without opening a separate buffer.
 
-### `:TaskDelegate` — hand a task to Claude
+### `:TwDelegate` — hand a task to Claude
 
 ![delegate popup](demo/assets/delegate.gif)
 
-Opens a popup form (extra context, flags, model, system-prompt-file) and runs Claude in a visible bottom split. Visual-range support: `V` to select multiple task lines, then `:TaskDelegate` delegates them all in one Claude session. `:TaskDelegate copy` and `:TaskDelegate copy-command` copy the assembled prompt or the full shell invocation to the `+` register without spawning anything.
+Opens a popup form (extra context, flags, model, system-prompt-file) and runs Claude in a visible bottom split. Visual-range support: `V` to select multiple task lines, then `:TwDelegate` delegates them all in one Claude session. `:TwDelegate copy` and `:TwDelegate copy-command` copy the assembled prompt or the full shell invocation to the `+` register without spawning anything.
 
-### `:TaskDiffPreview` — see edits before you save
+### `:TwDiffPreview` — see edits before you save
 
 ![diff preview virt_text](demo/assets/diff-preview.gif)
 
-Toggle with `:TaskDiffPreview on`. As you edit, virtual-text labels appear at end-of-line: `+ ADD`, `~ MODIFY`, `✓ DONE`, `✗ DELETE`, `▶ START`, `◼ STOP`. 400ms debounce keeps it from running on every keystroke. Same data the `:w` confirmation dialog uses — just shown live.
+Toggle with `:TwDiffPreview on`. As you edit, virtual-text labels appear at end-of-line: `+ ADD`, `~ MODIFY`, `✓ DONE`, `✗ DELETE`, `▶ START`, `◼ STOP`. 400ms debounce keeps it from running on every keystroke. Same data the `:w` confirmation dialog uses — just shown live.
 
 </details>
 
@@ -189,12 +189,12 @@ The full external-write matrix is verified in `tests/e2e/spec/external_changes_s
 Register the directories you work in:
 
 ```
-:TaskProjectAdd career      -- maps cwd to project:career
-:TaskProjectList            -- show all mappings
-:TaskProjectRemove          -- unmap cwd
+:TwProjectAdd career      -- maps cwd to project:career
+:TwProjectList            -- show all mappings
+:TwProjectRemove          -- unmap cwd
 ```
 
-After that, `:Task` (with no filter) auto-applies `project:<name>` whenever you launch it from inside a registered directory. Persisted to `stdpath("data")/taskwarrior_nvim_projects.json`.
+After that, `:Tw` (with no filter) auto-applies `project:<name>` whenever you launch it from inside a registered directory. Persisted to `stdpath("data")/taskwarrior_nvim_projects.json`.
 
 ## Ecosystem
 
@@ -210,27 +210,27 @@ These are bundled but require their own host plugins.
 
 | Command | Description |
 |---|---|
-| `:Task [filter]` | Open task buffer with optional Taskwarrior filter |
-| `:TaskFilter [filter]` | Change filter on current buffer |
-| `:TaskSort <spec>` | Change sort order (e.g. `due+`, `urgency-`, `priority-`) |
-| `:TaskGroup [field]` | Change grouping (`project`, `tag`, or `none`) |
-| `:TaskRefresh` | Reload from Taskwarrior |
-| `:TaskAdd` | Quick-capture a task (floating window) |
-| `:TaskUndo` | Reverse last save's changes |
-| `:TaskHelp` | Show all commands, keybindings, syntax |
-| `:TaskStart` / `:TaskStop` | Start / stop active timer on task under cursor |
-| `:TaskSave <name>` / `:TaskLoad [name]` | Save / restore the current filter+sort+group as a named view |
-| `:TaskReview` | Guided urgency walk through pending tasks |
-| `:TaskDelegate [copy\|copy-command]` | Delegate task(s) to Claude in a popup form |
-| `:TaskDiffPreview [on\|off\|toggle]` | Toggle live virt-text diff preview |
-| `:TaskBurndown` | Pending-task burndown chart |
-| `:TaskTree` | Dependency tree |
-| `:TaskSummary` | Per-project stats |
-| `:TaskCalendar` | Tasks grouped by due date |
-| `:TaskTags` | Tag-frequency view |
-| `:TaskProjectAdd [name]` / `:TaskProjectRemove` / `:TaskProjectList` | Auto-project mapping |
-| `:TaskTutor [reset]` | Open the interactive tutorial; `reset` ends an active session and cleans up orphan temp dirs |
-| `:TaskFeedback [last-error]` | Open the structured bug-report form; `last-error` pre-fills with the most recent ERROR captured by the plugin |
+| `:Tw [filter]` | Open task buffer with optional Taskwarrior filter |
+| `:TwFilter [filter]` | Change filter on current buffer |
+| `:TwSort <spec>` | Change sort order (e.g. `due+`, `urgency-`, `priority-`) |
+| `:TwGroup [field]` | Change grouping (`project`, `tag`, or `none`) |
+| `:TwRefresh` | Reload from Taskwarrior |
+| `:TwAdd` | Quick-capture a task (floating window) |
+| `:TwUndo` | Reverse last save's changes |
+| `:TwHelp` | Show all commands, keybindings, syntax |
+| `:TwStart` / `:TwStop` | Start / stop active timer on task under cursor |
+| `:TwSave <name>` / `:TwLoad [name]` | Save / restore the current filter+sort+group as a named view |
+| `:TwReview` | Guided urgency walk through pending tasks |
+| `:TwDelegate [copy\|copy-command]` | Delegate task(s) to Claude in a popup form |
+| `:TwDiffPreview [on\|off\|toggle]` | Toggle live virt-text diff preview |
+| `:TwBurndown` | Pending-task burndown chart |
+| `:TwTree` | Dependency tree |
+| `:TwSummary` | Per-project stats |
+| `:TwCalendar` | Tasks grouped by due date |
+| `:TwTags` | Tag-frequency view |
+| `:TwProjectAdd [name]` / `:TwProjectRemove` / `:TwProjectList` | Auto-project mapping |
+| `:TwTutor [reset]` | Open the interactive tutorial; `reset` ends an active session and cleans up orphan temp dirs |
+| `:TwFeedback [last-error]` | Open the structured bug-report form; `last-error` pre-fills with the most recent ERROR captured by the plugin |
 
 ## Keybindings (buffer-local)
 
@@ -327,10 +327,10 @@ require("taskwarrior").setup({
 
 ## How it works
 
-1. `:Task` runs the Lua backend (`lua/taskwarrior/taskmd.lua`) which calls `task export`, parses the JSON, and renders markdown checkboxes with concealed `<!-- uuid:ab05fb51 -->` markers.
+1. `:Tw` runs the Lua backend (`lua/taskwarrior/taskmd.lua`) which calls `task export`, parses the JSON, and renders markdown checkboxes with concealed `<!-- uuid:ab05fb51 -->` markers.
 2. You edit the buffer with standard vim operations.
 3. On `:w`, the plugin diffs your edits against fresh Taskwarrior state.
-4. A confirmation dialog shows what will change (`:TaskDiffPreview on` shows it live as you type).
+4. A confirmation dialog shows what will change (`:TwDiffPreview on` shows it live as you type).
 5. Changes are applied via `task modify` / `task done` / `task add` / `task delete`.
 6. The buffer re-renders from Taskwarrior truth.
 
@@ -368,7 +368,7 @@ The CLI also refuses to `apply` a file with a missing or malformed header unless
 
 ## Migrating from `task.nvim`?
 
-This plugin was renamed in v1.3.0. Update your lazy.nvim spec from `matthandzel/task.nvim` to `matthandzel/taskwarrior.nvim` and replace `require("task")` with `require("taskwarrior")` in your config. The `:Task*` commands and the `taskmd` filetype are unchanged. Saved views, registered projects, and apply backups migrate automatically the first time the plugin loads.
+This plugin was renamed in v1.3.0. Update your lazy.nvim spec from `matthandzel/task.nvim` to `matthandzel/taskwarrior.nvim` and replace `require("task")` with `require("taskwarrior")` in your config. The `:Tw*` commands and the `taskmd` filetype are unchanged. Saved views, registered projects, and apply backups migrate automatically the first time the plugin loads.
 
 ## Reporting bugs
 
@@ -376,11 +376,11 @@ Hit something weird? The plugin is built so you don't have to copy-paste anythin
 
 | Trigger | What happens |
 |---|---|
-| Plugin emits an `[ERROR]` notify | First ERROR per session has a one-line tip appended: *"press `<leader>tF` or `:TaskFeedback last-error`"*. Once per session — not spam. |
-| `<leader>tF` (default) | Opens `:TaskFeedback` with the most recent ERROR auto-prefilled into "What happened?". |
-| `:TaskFeedback last-error` | Same as `<leader>tF`, no keymap needed. |
-| `:TaskFeedback` | Empty form when you want to file something proactive. |
-| `g?` inside any `:Task` buffer | Prefills "Anything else?" with the active filter / sort / group + a sanitized snapshot of ~50 lines around your cursor. |
+| Plugin emits an `[ERROR]` notify | First ERROR per session has a one-line tip appended: *"press `<leader>tF` or `:TwFeedback last-error`"*. Once per session — not spam. |
+| `<leader>tF` (default) | Opens `:TwFeedback` with the most recent ERROR auto-prefilled into "What happened?". |
+| `:TwFeedback last-error` | Same as `<leader>tF`, no keymap needed. |
+| `:TwFeedback` | Empty form when you want to file something proactive. |
+| `g?` inside any `:Tw` buffer | Prefills "Anything else?" with the active filter / sort / group + a sanitized snapshot of ~50 lines around your cursor. |
 
 After `:w` on the form, you choose: **Open as GitHub issue** (browser opens with everything pre-filled — just hit Submit), **Copy payload to clipboard**, or **Send to endpoint** (only shown if you've configured one). The full JSON payload is shown for review before any send/copy.
 
