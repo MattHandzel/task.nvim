@@ -66,7 +66,7 @@ errors=0
 for tape in "${tapes[@]}"; do
   name=$(basename "$tape" .tape)
   echo -n "  Rendering $name... "
-  if timeout 120 vhs "$tape" >/dev/null 2>&1; then
+  if timeout 300 vhs "$tape" >/dev/null 2>&1; then
     echo -e "${GREEN}done${NC}"
   else
     echo -e "${RED}FAILED${NC}"
