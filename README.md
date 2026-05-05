@@ -12,27 +12,15 @@
 
 ![hero demo: bulk-edit priorities with a substitute, save, watch them apply](demo/assets/hero.gif)
 
-```
-:Tw                                   -- open all pending tasks
-V20j:s/project:Inbox/project:career/    -- reassign 20 tasks
-dd                                      -- mark task done
-o                                       -- add new task inline
-:w                                      -- sync all changes at once
-```
-
 ## ✨ Features
 
 - 📝 **Edit as markdown** — `:Tw` opens your Taskwarrior database as a buffer; every vim motion is a task operation
-- 🔁 **Bulk edits via `:s///`** — visual-select 20 tasks, substitute the project, `:w` applies them all in one round-trip
-- 🛡️ **Conflict-aware save** — diffs your edits against fresh Taskwarrior state on every `:w`; external `task add` / `task modify` between render and save is preserved, not clobbered
 - ⚡ **Quick capture from any buffer** — `<leader>ta` floats a one-line capture in any buffer
 - 🔍 **Live query blocks in arbitrary markdown** — `<!-- taskmd query: due.before:eow -->` renders matching tasks below it on save; embed live task lists in your project's `notes.md`
 - 📊 **Built-in visualizations** — burndown, dependency tree, per-project summary, calendar, tag frequency, Mermaid graph
 - 🎯 **Guided review + GTD inbox** — `:TwReview` walks pending tasks in urgency order; `:TwInbox` triages new captures
 - 🤖 **Delegate to Claude** — `:TwDelegate` opens a popup form and runs the task as a Claude prompt in a bottom split
 - 🎓 **Interactive tutor** — `:TwTutor` teaches Taskwarrior + the plugin from scratch in 20 minutes, fully sandboxed (your real `~/.task` is never touched)
-- 🚀 **Pure-Lua, zero runtime deps** — no Python, no subprocesses on the hot path; just Neovim + the `task` CLI
-- 🧪 **380+ tests** — Lua unit + smoke + end-to-end against a real `task` binary including external-write conflict scenarios
 
 ## ⚡ Requirements
 
@@ -51,18 +39,6 @@ o                                       -- add new task inline
 }
 ```
 
-> **Want the old `:Task*` commands back?** (E.g., you have keymaps to `:TaskAdd` from before v1.4.1, when `:Task` was the default.) Override our prefix before the plugin loads:
->
-> ```lua
-> {
->   "matthandzel/taskwarrior.nvim",
->   init = function() vim.g.taskwarrior_command_prefix = "Task" end,
->   config = function() require("taskwarrior").setup() end,
-> }
-> ```
->
-> The default flipped from `:Task` to `:Tw` in v1.4.1 to resolve a collision with [Shatur/neovim-tasks](https://github.com/Shatur/neovim-tasks) which also registers `:Task`. The `command_prefix` accepts any uppercase-leading letter-only string, so you can also pick something else (`:Tk`, `:TaskW`, etc.). The plugin emits a one-shot WARN at startup if it detects the configured prefix colliding with another plugin.
-
 ## 🚀 Quick start
 
 ```
@@ -79,17 +55,9 @@ Edit any line. `:w` to sync. That's it.
 :TwTutor
 ```
 
-A 5-lesson, ~20-minute interactive walkthrough that teaches the Taskwarrior CLI from scratch and graduates you into the plugin's buffer-as-database UX. Fully sandboxed — every command runs against a throwaway DB in `/tmp`, your real `~/.task` and `~/.taskrc` are never touched. The tutor cleans up after itself when you finish, quit (`q`), or close the buffer.
+A 5-lesson, ~20-minute interactive walkthrough that teaches the Taskwarrior CLI. Fully sandboxed.
 
 Prefer video? Andrew Dumont's [Taskwarrior intro on YouTube](https://www.youtube.com/watch?v=5wmcn9-IQE4) is a great 8-minute primer; come back to `:TwTutor` after.
-
-If `task` is missing on your system, the tutor's first lesson points you at the right install command for your package manager. Or run `:checkhealth taskwarrior` to verify your environment.
-
-### Sandbox guarantees
-
-The tutor runs every `task` command with `rc.data.location=<temp>` and `rc.hooks=off`, and the `[Tutor shell]` terminal split spawns `bash --norc --noprofile` with `TASKDATA`/`TASKRC` env scoped to the temp dir. The structural invariants are tested in [`tests/lua/spec/tutor_isolation_spec.lua`](tests/lua/spec/tutor_isolation_spec.lua) and [`tests/lua/spec/tutor_lessons_spec.lua`](tests/lua/spec/tutor_lessons_spec.lua) — together they make it impossible for a future code change to silently bypass the sandbox.
-
-`:TwTutor reset` ends an active session and cleans up any orphan temp dirs left by a prior crash.
 
 ---
 
@@ -158,20 +126,6 @@ Toggle with `:TwDiffPreview on`. As you edit, virtual-text labels appear at end-
 
 </details>
 
----
-
-## Conflict-aware save path
-
-The buffer is a snapshot of `task export` at the moment you opened it. When you `:w`, the plugin re-exports the current Taskwarrior state and diffs your edits **against current state**, not against what you saw. This means:
-
-- A task someone else added between render and save is preserved — your edits don't silently mark it done.
-- A field added externally (`task X modify foo:bar` from another window or a sync) survives your save.
-- A task externally completed isn't resurrected as pending just because its checkbox is still rendered in your buffer.
-- A genuine conflict (you and an external writer both changed the same field) surfaces in the confirmation dialog instead of being silently overwritten.
-- `:w!` skips the conflict check — destructive escape hatch when you know what you're doing.
-
-The full external-write matrix is verified in `tests/e2e/spec/external_changes_spec.lua` against a real `task` binary on every commit.
-
 ## Auto-project filter from cwd
 
 Register the directories you work in:
@@ -188,55 +142,55 @@ After that, `:Tw` (with no filter) auto-applies `project:<name>` whenever you la
 
 These are bundled but require their own host plugins.
 
-| Module | Path | Activate |
-|---|---|---|
-| Telescope picker | `lua/telescope/_extensions/task.lua` | `require("telescope").load_extension("task")` then `:Telescope task tasks` |
-| nvim-cmp source | `lua/taskwarrior/cmp.lua` | `require("cmp").register_source("task", require("taskwarrior.cmp").new())` then add `{ name = "task" }` to your cmp sources |
-| Statusline component | `lua/taskwarrior/statusline.lua` | `require("taskwarrior.statusline").render()` — returns a string with the active task / overdue count / next due |
+| Module               | Path                                 | Activate                                                                                                                    |
+| -------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Telescope picker     | `lua/telescope/_extensions/task.lua` | `require("telescope").load_extension("task")` then `:Telescope task tasks`                                                  |
+| nvim-cmp source      | `lua/taskwarrior/cmp.lua`            | `require("cmp").register_source("task", require("taskwarrior.cmp").new())` then add `{ name = "task" }` to your cmp sources |
+| Statusline component | `lua/taskwarrior/statusline.lua`     | `require("taskwarrior.statusline").render()` — returns a string with the active task / overdue count / next due             |
 
 ## All commands
 
-| Command | Description |
-|---|---|
-| `:Tw [filter]` | Open task buffer with optional Taskwarrior filter |
-| `:TwFilter [filter]` | Change filter on current buffer |
-| `:TwSort <spec>` | Change sort order (e.g. `due+`, `urgency-`, `priority-`) |
-| `:TwGroup [field]` | Change grouping (`project`, `tag`, or `none`) |
-| `:TwRefresh` | Reload from Taskwarrior |
-| `:TwAdd` | Quick-capture a task (floating window) |
-| `:TwUndo` | Reverse last save's changes |
-| `:TwHelp` | Show all commands, keybindings, syntax |
-| `:TwStart` / `:TwStop` | Start / stop active timer on task under cursor |
-| `:TwSave <name>` / `:TwLoad [name]` | Save / restore the current filter+sort+group as a named view |
-| `:TwReview` | Guided urgency walk through pending tasks |
-| `:TwDelegate [copy\|copy-command]` | Delegate task(s) to Claude in a popup form |
-| `:TwDiffPreview [on\|off\|toggle]` | Toggle live virt-text diff preview |
-| `:TwBurndown` | Pending-task burndown chart |
-| `:TwTree` | Dependency tree |
-| `:TwSummary` | Per-project stats |
-| `:TwCalendar` | Tasks grouped by due date |
-| `:TwTags` | Tag-frequency view |
-| `:TwProjectAdd [name]` / `:TwProjectRemove` / `:TwProjectList` | Auto-project mapping |
-| `:TwTutor [reset]` | Open the interactive tutorial; `reset` ends an active session and cleans up orphan temp dirs |
-| `:TwFeedback [last-error]` | Open the structured bug-report form; `last-error` pre-fills with the most recent ERROR captured by the plugin |
+| Command                                                        | Description                                                                                                   |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `:Tw [filter]`                                                 | Open task buffer with optional Taskwarrior filter                                                             |
+| `:TwFilter [filter]`                                           | Change filter on current buffer                                                                               |
+| `:TwSort <spec>`                                               | Change sort order (e.g. `due+`, `urgency-`, `priority-`)                                                      |
+| `:TwGroup [field]`                                             | Change grouping (`project`, `tag`, or `none`)                                                                 |
+| `:TwRefresh`                                                   | Reload from Taskwarrior                                                                                       |
+| `:TwAdd`                                                       | Quick-capture a task (floating window)                                                                        |
+| `:TwUndo`                                                      | Reverse last save's changes                                                                                   |
+| `:TwHelp`                                                      | Show all commands, keybindings, syntax                                                                        |
+| `:TwStart` / `:TwStop`                                         | Start / stop active timer on task under cursor                                                                |
+| `:TwSave <name>` / `:TwLoad [name]`                            | Save / restore the current filter+sort+group as a named view                                                  |
+| `:TwReview`                                                    | Guided urgency walk through pending tasks                                                                     |
+| `:TwDelegate [copy\|copy-command]`                             | Delegate task(s) to Claude in a popup form                                                                    |
+| `:TwDiffPreview [on\|off\|toggle]`                             | Toggle live virt-text diff preview                                                                            |
+| `:TwBurndown`                                                  | Pending-task burndown chart                                                                                   |
+| `:TwTree`                                                      | Dependency tree                                                                                               |
+| `:TwSummary`                                                   | Per-project stats                                                                                             |
+| `:TwCalendar`                                                  | Tasks grouped by due date                                                                                     |
+| `:TwTags`                                                      | Tag-frequency view                                                                                            |
+| `:TwProjectAdd [name]` / `:TwProjectRemove` / `:TwProjectList` | Auto-project mapping                                                                                          |
+| `:TwTutor [reset]`                                             | Open the interactive tutorial; `reset` ends an active session and cleans up orphan temp dirs                  |
+| `:TwFeedback [last-error]`                                     | Open the structured bug-report form; `last-error` pre-fills with the most recent ERROR captured by the plugin |
 
 ## Keybindings (buffer-local)
 
-| Key | Action |
-|---|---|
-| `<CR>` | Toggle task complete/pending |
-| `o` | New task below |
-| `O` | New task above |
-| `dd` | Delete task (marks done on save by default) |
-| `yy` + `p` | Duplicate task |
-| `ga` | Add annotation |
-| `gf` | View formatted `task info` |
-| `<leader>ta` | Quick-capture (global, works from any buffer) |
-| `<leader>tt` | Open task buffer (global) |
-| `<leader>tf` | Change filter (in task buffer) |
-| `<leader>ts` | Change sort (in task buffer) |
-| `<leader>tg` | Change group (in task buffer) |
-| `<leader>tpa` | Register cwd as a project |
+| Key           | Action                                        |
+| ------------- | --------------------------------------------- |
+| `<CR>`        | Toggle task complete/pending                  |
+| `o`           | New task below                                |
+| `O`           | New task above                                |
+| `dd`          | Delete task (marks done on save by default)   |
+| `yy` + `p`    | Duplicate task                                |
+| `ga`          | Add annotation                                |
+| `gf`          | View formatted `task info`                    |
+| `<leader>ta`  | Quick-capture (global, works from any buffer) |
+| `<leader>tt`  | Open task buffer (global)                     |
+| `<leader>tf`  | Change filter (in task buffer)                |
+| `<leader>ts`  | Change sort (in task buffer)                  |
+| `<leader>tg`  | Change group (in task buffer)                 |
+| `<leader>tpa` | Register cwd as a project                     |
 
 ## Metadata syntax
 
@@ -287,6 +241,8 @@ require("taskwarrior").setup({
 
 ### Custom urgency with UDAs
 
+Custom feature from `taskwarrior.nvim`!
+
 If you have custom UDA fields (e.g. `utility`, `effort`) and want them to affect task sort order, use `urgency_coefficients`. For each field, the urgency adjustment is **value × coefficient** — proportional to the actual numeric value, not just whether the field is present:
 
 ```lua
@@ -313,72 +269,17 @@ require("taskwarrior").setup({
 })
 ```
 
-## How it works
-
-1. `:Tw` runs the Lua backend (`lua/taskwarrior/taskmd.lua`) which calls `task export`, parses the JSON, and renders markdown checkboxes with concealed `<!-- uuid:ab05fb51 -->` markers.
-2. You edit the buffer with standard vim operations.
-3. On `:w`, the plugin diffs your edits against fresh Taskwarrior state.
-4. A confirmation dialog shows what will change (`:TwDiffPreview on` shows it live as you type).
-5. Changes are applied via `task modify` / `task done` / `task add` / `task delete`.
-6. The buffer re-renders from Taskwarrior truth.
-
-UUID markers are invisible thanks to `conceallevel=3` + `concealcursor`, and survive any vim operation that preserves the line.
-
 ## Health check
 
 Run `:checkhealth taskwarrior` to verify your setup (Neovim version, Taskwarrior CLI, data directory).
 
 ## Data safety
 
-> **Status: Beta.** Usable day-to-day, but APIs and defaults may still change before 1.0. Always keep an external backup of your Taskwarrior data (`cp -r ~/.task ~/.task.bak`); review the confirmation dialog before saving — `:w` issues real `task modify` / `task done` / `task delete` commands.
+> **Status: Beta.** Usable day-to-day, but APIs and defaults may still change. Always keep an external backup of your Taskwarrior data (`cp -r ~/.task ~/.task.bak`); review the confirmation dialog before saving — `:w` issues real `task modify` / `task done` / `task delete` commands.
 
 `:w` issues real `task modify` / `task done` / `task add` / `task delete` commands against your Taskwarrior database. There is no staging.
 
 By default (`auto_backup = true`), the plugin copies your Taskwarrior data directory to `stdpath("data")/taskwarrior.nvim/backups/<timestamp>/` immediately before any apply. The ten newest backups are kept; older ones are pruned. Disable with `auto_backup = false` in `setup()`.
-
-The save path also refuses to apply a file with a missing or malformed header unless you pass `:w!`, preventing the "hand-wrote a file, got every pending task marked done" failure mode.
-
-**You should still keep an external backup of `~/.task`.** The plugin's backups are a convenience, not a replacement.
-
-## Migrating from `task.nvim`?
-
-This plugin was renamed in v1.3.0. Update your lazy.nvim spec from `matthandzel/task.nvim` to `matthandzel/taskwarrior.nvim` and replace `require("task")` with `require("taskwarrior")` in your config. The `:Tw*` commands and the `taskmd` filetype are unchanged. Saved views, registered projects, and apply backups migrate automatically the first time the plugin loads.
-
-## Reporting bugs
-
-Hit something weird? The plugin is built so you don't have to copy-paste anything.
-
-| Trigger | What happens |
-|---|---|
-| Plugin emits an `[ERROR]` notify | First ERROR per session has a one-line tip appended: *"press `<leader>tF` or `:TwFeedback last-error`"*. Once per session — not spam. |
-| `<leader>tF` (default) | Opens `:TwFeedback` with the most recent ERROR auto-prefilled into "What happened?". |
-| `:TwFeedback last-error` | Same as `<leader>tF`, no keymap needed. |
-| `:TwFeedback` | Empty form when you want to file something proactive. |
-| `g?` inside any `:Tw` buffer | Prefills "Anything else?" with the active filter / sort / group + a sanitized snapshot of ~50 lines around your cursor. |
-
-After `:w` on the form, you choose: **Open as GitHub issue** (browser opens with everything pre-filled — just hit Submit), **Copy payload to clipboard**, or **Send to endpoint** (only shown if you've configured one). The full JSON payload is shown for review before any send/copy.
-
-### Privacy guarantees
-
-These rules are enforced by tests in `tests/lua/spec/feedback_*_spec.lua`:
-
-- **Task descriptions never leave your machine.** The `g?` capture replaces every alphanumeric in description text with the literal `a` while preserving the structural Taskwarrior tokens (`project:`, `+tag`, `due:`, `priority:`, `<!-- uuid:... -->`). Length is preserved character-for-character so layout bugs reproduce exactly.
-- **Task counts are bucketed.** Reported as a string range like `101-500`, not the raw integer — differential-privacy-style coarsening so an exact count can't be combined with timestamps + OS to fingerprint a user.
-- **The ring buffer captures only WARN/ERROR notifications routed through this plugin.** Other plugins' notifications are never observed.
-- **Path scrubbing.** `$HOME` and similar are normalized to `~/...` before any send.
-- **Nothing auto-sends.** Every action is an explicit choice in the post-`:w` prompt.
-
-Disable any of it via:
-
-```lua
-require("taskwarrior").setup({
-  feedback = {
-    capture_log    = false,    -- no ring buffer of recent notifications
-    hint_on_error  = false,    -- no "Tip: press <leader>tF" suffix on errors
-    feedback_key   = false,    -- no global <leader>tF keymap
-  },
-})
-```
 
 ## Help
 
