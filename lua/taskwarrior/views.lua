@@ -85,7 +85,11 @@ local function open_scratch(name, lines, highlights, render_fn)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, clean)
   vim.bo[buf].modifiable = false
 
-  vim.cmd("split")
+  -- Open visualizations in a new tab so the chart/calendar/tree gets the
+  -- full window. Pre-v1.5 they opened in a horizontal split, which left
+  -- the chart squished above the :Tw buffer below it. Users dismiss with
+  -- :tabclose or `q` (each view buffer registers a `q` keymap below).
+  vim.cmd("tab split")
   vim.api.nvim_win_set_buf(0, buf)
   local ok = pcall(vim.api.nvim_buf_set_name, buf, name)
   if not ok then
