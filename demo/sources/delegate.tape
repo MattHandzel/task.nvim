@@ -1,5 +1,5 @@
 # Asset: demo/assets/delegate.gif
-# Purpose: README "Power user" — :TaskDelegate popup form (no actual claude spawn)
+# Purpose: README "Power user" — :TwDelegate popup form (no actual claude spawn)
 # Length target: ~10s
 
 Output "demo/assets/delegate.gif"
@@ -36,7 +36,7 @@ Enter
 Sleep 1500ms
 
 # Open the delegate form
-Type ":TaskDelegate"
+Type ":TwDelegate"
 Enter
 Sleep 3500ms
 

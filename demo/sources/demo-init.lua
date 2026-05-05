@@ -33,11 +33,11 @@ require("taskwarrior").setup({
   group = nil,
 })
 
--- Only auto-open :Task if no file was given on the command line. The hero
+-- Only auto-open :Tw if no file was given on the command line. The hero
 -- and filter-group demos launch with no file and want the instant task view;
 -- the quick-capture demo launches with a source file and wants to stay there.
 if vim.fn.argc() == 0 then
   vim.schedule(function()
-    pcall(vim.cmd, "Task")
+    pcall(vim.cmd, "Tw")
   end)
 end

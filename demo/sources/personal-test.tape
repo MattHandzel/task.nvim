@@ -36,8 +36,8 @@ Sleep 2s
 Type "TASKRC=/tmp/task-nvim-demo/.taskrc-demo TASKDATA=/tmp/task-nvim-demo/.task-demo nvim -u /home/matth/.config/nvim/init.lua"
 Enter
 Sleep 5s
-# If a dashboard / alpha buffer caught focus, :Task will replace it.
-Type ":Task"
+# If a dashboard / alpha buffer caught focus, :Tw will replace it.
+Type ":Tw"
 Enter
 Sleep 2500ms
 Show

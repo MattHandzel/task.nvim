@@ -1,5 +1,5 @@
 # Asset: demo/assets/tags.png
-# Purpose: README "Visualize" — show tag-frequency view (:TaskTags)
+# Purpose: README "Visualize" — show tag-frequency view (:TwTags)
 
 Output "demo/assets/tags.gif"
 
@@ -24,7 +24,7 @@ Sleep 2s
 Type "TASKRC=/tmp/task-nvim-demo/.taskrc-demo TASKDATA=/tmp/task-nvim-demo/.task-demo nvim -u demo/sources/demo-init.lua"
 Enter
 Sleep 2s
-Type ":TaskTags"
+Type ":TwTags"
 Enter
 Sleep 800ms
 Ctrl+w

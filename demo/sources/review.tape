@@ -1,5 +1,5 @@
 # Asset: demo/assets/review.gif
-# Purpose: README "Power user" — :TaskReview guided walk through urgent tasks
+# Purpose: README "Power user" — :TwReview guided walk through urgent tasks
 # Length target: ~12s
 
 Output "demo/assets/review.gif"
@@ -31,7 +31,7 @@ Show
 Sleep 1500ms
 
 # Start guided review — walks urgent tasks one at a time
-Type ":TaskReview"
+Type ":TwReview"
 Enter
 Sleep 2500ms
 

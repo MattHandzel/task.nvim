@@ -1,5 +1,5 @@
 # Asset: demo/assets/summary.png
-# Purpose: README "Visualize" — show project summary (:TaskSummary)
+# Purpose: README "Visualize" — show project summary (:TwSummary)
 
 Output "demo/assets/summary.gif"
 
@@ -24,7 +24,7 @@ Sleep 2s
 Type "TASKRC=/tmp/task-nvim-demo/.taskrc-demo TASKDATA=/tmp/task-nvim-demo/.task-demo nvim -u demo/sources/demo-init.lua"
 Enter
 Sleep 2s
-Type ":TaskSummary"
+Type ":TwSummary"
 Enter
 Sleep 800ms
 Ctrl+w

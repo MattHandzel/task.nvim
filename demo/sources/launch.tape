@@ -61,9 +61,9 @@ Type "   github.com/MattHandzel/taskwarrior.nvim"
 Enter
 Type ""
 Enter
-Type "   :Task — pending tasks         <leader>ta — quick capture"
+Type "   :Tw — pending tasks         <leader>ta — quick capture"
 Enter
-Type "   :TaskTree — dependencies      :TaskReview — urgency walk"
+Type "   :TwTree — dependencies      :TwReview — urgency walk"
 Enter
 Type ""
 Enter
@@ -104,21 +104,21 @@ Enter
 Sleep 2200ms
 
 # === Scene 3: Filter + group =================================================
-Type ":TaskFilter +work"
+Type ":TwFilter +work"
 Enter
 Sleep 1400ms
-Type ":TaskGroup project"
+Type ":TwGroup project"
 Enter
 Sleep 2400ms
-Type ":TaskFilter "
+Type ":TwFilter "
 Enter
 Sleep 900ms
-Type ":TaskGroup none"
+Type ":TwGroup none"
 Enter
 Sleep 700ms
 
 # === Scene 4: TaskTree — dependency view ===================================
-Type ":TaskTree"
+Type ":TwTree"
 Enter
 Sleep 2800ms
 Type ":bd"
@@ -126,7 +126,7 @@ Enter
 Sleep 400ms
 
 # === Scene 5: TaskBurndown =================================================
-Type ":TaskBurndown"
+Type ":TwBurndown"
 Enter
 Sleep 2400ms
 Type ":bd"
@@ -134,7 +134,7 @@ Enter
 Sleep 400ms
 
 # === Scene 6: TaskCalendar =================================================
-Type ":TaskCalendar"
+Type ":TwCalendar"
 Enter
 Sleep 2400ms
 Type ":bd"
@@ -142,7 +142,7 @@ Enter
 Sleep 400ms
 
 # === Scene 7: TaskTags =====================================================
-Type ":TaskTags"
+Type ":TwTags"
 Enter
 Sleep 2200ms
 Type ":bd"
@@ -150,7 +150,7 @@ Enter
 Sleep 400ms
 
 # === Scene 8: TaskReview — guided urgency walk =============================
-Type ":TaskReview"
+Type ":TwReview"
 Enter
 Sleep 1600ms
 Type "k"
@@ -163,7 +163,7 @@ Type "q"
 Sleep 700ms
 
 # === Scene 9: TaskDiffPreview — live virt-text =============================
-Type ":TaskDiffPreview on"
+Type ":TwDiffPreview on"
 Enter
 Sleep 900ms
 Type "gg"

@@ -1,5 +1,5 @@
 # Asset: demo/assets/tree.png
-# Purpose: README "Visualize" — show the dependency tree (:TaskTree)
+# Purpose: README "Visualize" — show the dependency tree (:TwTree)
 
 Output "demo/assets/tree.gif"
 
@@ -24,7 +24,7 @@ Sleep 2s
 Type "TASKRC=/tmp/task-nvim-demo/.taskrc-demo TASKDATA=/tmp/task-nvim-demo/.task-demo nvim -u demo/sources/demo-init.lua"
 Enter
 Sleep 2s
-Type ":TaskTree"
+Type ":TwTree"
 Enter
 Sleep 800ms
 Ctrl+w

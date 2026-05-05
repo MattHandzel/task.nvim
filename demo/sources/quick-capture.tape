@@ -54,7 +54,7 @@ Enter
 Sleep 2s
 
 # Now flip to the task buffer to prove it landed there
-Type ":Task"
+Type ":Tw"
 Sleep 800ms
 Enter
 Sleep 3s

@@ -31,7 +31,7 @@ Show
 Sleep 1500ms
 
 # Enable live diff preview
-Type ":TaskDiffPreview on"
+Type ":TwDiffPreview on"
 Enter
 Sleep 1500ms
 

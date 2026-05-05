@@ -3,8 +3,8 @@
 # Capture mode: single-frame PNG (chart doesn't animate)
 #
 # Privacy: TASKRC + TASKDATA are pinned to the demo db via both VHS Env and
-# inline shell exports. The `:only` after `:TaskBurndown` drops the auto-opened
-# :Task split so the burndown is the only pane in the screenshot.
+# inline shell exports. The `:only` after `:TwBurndown` drops the auto-opened
+# :Tw split so the burndown is the only pane in the screenshot.
 
 Output "demo/assets/burndown.gif"
 
@@ -29,7 +29,7 @@ Sleep 2s
 Type "TASKRC=/tmp/task-nvim-demo/.taskrc-demo TASKDATA=/tmp/task-nvim-demo/.task-demo nvim -u demo/sources/demo-init.lua"
 Enter
 Sleep 2s
-Type ":TaskBurndown"
+Type ":TwBurndown"
 Enter
 Sleep 800ms
 Ctrl+w

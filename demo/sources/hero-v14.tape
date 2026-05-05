@@ -8,7 +8,7 @@
 #   needing a caption (alert viewers will notice; cold viewers see only a
 #   tight, oil.nvim-style demo).
 #
-# Story beat: open :Task → <CR> toggles done → o adds → V-d bulk-deletes →
+# Story beat: open :Tw → <CR> toggles done → o adds → V-d bulk-deletes →
 #             [hidden: external `task add`] → :w → re-render shows external
 #             task survived alongside the local edits
 # Target platform: README hero, r/neovim/r/taskwarrior/HN top-of-post

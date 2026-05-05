@@ -34,35 +34,35 @@ Show
 Sleep 2s
 
 # Filter to a single project
-Type ":TaskFilter project:work.api"
+Type ":TwFilter project:work.api"
 Sleep 1200ms
 Enter
 Sleep 2500ms
 
 # Widen filter to all work tasks
-Type ":TaskFilter project.startswith:work"
+Type ":TwFilter project.startswith:work"
 Sleep 1200ms
 Enter
 Sleep 2500ms
 
 # Now group by project
-Type ":TaskGroup project"
+Type ":TwGroup project"
 Sleep 1200ms
 Enter
 Sleep 3s
 
 # Resort within groups by due date
-Type ":TaskSort due+"
+Type ":TwSort due+"
 Sleep 1200ms
 Enter
 Sleep 3s
 
 # Clear group, go back to flat urgency sort (money shot: cycles back)
-Type ":TaskGroup none"
+Type ":TwGroup none"
 Sleep 1000ms
 Enter
 Sleep 500ms
-Type ":TaskSort urgency-"
+Type ":TwSort urgency-"
 Sleep 1000ms
 Enter
 

@@ -1,5 +1,5 @@
 # Asset: demo/assets/calendar.png
-# Purpose: README "Visualize" — show calendar view (:TaskCalendar)
+# Purpose: README "Visualize" — show calendar view (:TwCalendar)
 
 Output "demo/assets/calendar.gif"
 
@@ -24,7 +24,7 @@ Sleep 2s
 Type "TASKRC=/tmp/task-nvim-demo/.taskrc-demo TASKDATA=/tmp/task-nvim-demo/.task-demo nvim -u demo/sources/demo-init.lua"
 Enter
 Sleep 2s
-Type ":TaskCalendar"
+Type ":TwCalendar"
 Enter
 Sleep 800ms
 Ctrl+w
