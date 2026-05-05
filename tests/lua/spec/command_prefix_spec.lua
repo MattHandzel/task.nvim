@@ -161,7 +161,11 @@ describe("command_prefix — issue #1 (configurable command names)", function()
     end)
 
     it("collision warning mentions the override mechanism", function()
-      vim.api.nvim_create_user_command("Task", function() end, { nargs = "*" })
+      -- Pre-create :Tw to match the new default prefix; otherwise
+      -- setup() doesn't see a collision and never warns. (The earlier
+      -- replace_all when flipping the default missed this second
+      -- occurrence because of slightly different surrounding context.)
+      vim.api.nvim_create_user_command("Tw", function() end, { nargs = "*" })
 
       local found_msg
       local original_notify = vim.notify

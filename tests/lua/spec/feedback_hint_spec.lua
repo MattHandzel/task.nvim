@@ -40,9 +40,13 @@ describe("taskwarrior.feedback — error hint append", function()
 
   local function find_error_with_hint()
     for _, n in ipairs(notifications) do
+      -- Match `:TwFeedback` (current default after the v1.4.1 prefix
+      -- flip) OR `:TaskFeedback` (legacy/opt-in). The hint message
+      -- now interpolates the configured prefix dynamically, so the
+      -- exact command name varies by user config.
       if n.level == vim.log.levels.ERROR
         and n.msg:lower():match("tip:")
-        and n.msg:match("[Tt]ask[Ff]eedback") then
+        and n.msg:match("[Tt][awsk]+[Ff]eedback") then
         return n
       end
     end

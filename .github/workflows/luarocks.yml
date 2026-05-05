@@ -28,5 +28,8 @@ jobs:
             taskwarrior
             note-taking
             productivity
-          dependencies: |
-            neovim >= 0.9.0
+          # No `dependencies:` block. Neovim itself isn't a luarock —
+          # listing it as a dep makes `luarocks install` fail with
+          # "Could not satisfy dependency neovim >= 0.9.0: No results
+          # matching query were found for Lua 5.1." The Neovim version
+          # check happens at plugin load (plugin/taskwarrior.lua).
