@@ -91,17 +91,6 @@ The tutor runs every `task` command with `rc.data.location=<temp>` and `rc.hooks
 
 `:TwTutor reset` ends an active session and cleans up any orphan temp dirs left by a prior crash.
 
-## Compared to other Neovim Taskwarrior plugins
-
-| Plugin | Approach | Where this plugin differs |
-|---|---|---|
-| [m_taskwarrior_d.nvim](https://github.com/huantrinh1802/m_taskwarrior_d.nvim) | Sync `- [ ]` checkboxes embedded in your existing markdown notes | This plugin gives you a **dedicated buffer** for the database itself; pure-Lua render path (no per-task shell spawn freeze); conflict-aware diff; ships `:TwTutor` |
-| [neowarrior.nvim](https://github.com/duckdm/neowarrior.nvim) | Sidebar TUI with tree views, named reports, per-cwd configs | This plugin treats the database as a **buffer you edit with vim motions**, not a TUI you navigate with custom keys; picker-agnostic (works without Telescope); ships `:TwTutor` |
-| [ribelo/taskwarrior.nvim](https://github.com/ribelo/taskwarrior.nvim) | Telescope picker + per-project `.taskwarrior.json` auto time-tracking | This plugin is markdown-buffer first; Telescope is an optional layer, not the primary UI; actively maintained; ships `:TwTutor` |
-| [TaskWiki](https://github.com/tools-life/taskwiki) | Vimwiki extension with task-syntax checkboxes | This plugin is Neovim-native (no vimwiki dep), supports Taskwarrior 3.x, ships an automated test suite, and ships `:TwTutor` |
-
-The interactive tutor is unique to this plugin — no other Neovim Taskwarrior integration ships one.
-
 ---
 
 <details>
