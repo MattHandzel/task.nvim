@@ -28,7 +28,12 @@ vim.opt.runtimepath:prepend(plugin_dir)
 vim.g.mapleader = " "
 
 require("taskwarrior").setup({
-  confirm = false, -- auto-apply so the demo doesn't stall on a dialog
+  -- Keep the apply-confirmation picker on. The launch tape now answers it
+  -- explicitly (Type "1" Enter after every :w) so the dialog is part of the
+  -- demo — viewers see the safety net that protects their real Taskwarrior DB
+  -- in everyday use. Flip back to `confirm = false` only if you re-record a
+  -- shorter tape that intentionally skips the prompt.
+  confirm = true,
   sort = "urgency-",
   group = nil,
 })

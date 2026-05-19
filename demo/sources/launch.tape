@@ -74,8 +74,19 @@ Enter
 Sleep 2500ms
 Type ":w"
 Enter
-# 3s after save so the "Applied: N modified" notify is readable.
-Sleep 3000ms
+# :w fires the apply-confirmation picker ("1: Apply, 2: Cancel"). It is
+# intentional — viewers see the dialog that protects their real DB in
+# everyday use. Give 1.5s to read, then pick Apply (1).
+Sleep 1500ms
+Type "1"
+Enter
+# Apply runs and emits a multi-line "Applied: ..." notify. With cmdheight=1
+# in demo-init that overflows, so Neovim prints "Press ENTER or type command
+# to continue". Dismiss it explicitly — otherwise the next <leader>ta
+# keystroke is eaten by the prompt and the capture float never opens.
+Sleep 900ms
+Enter
+Sleep 1500ms
 
 # === Scene 2: Quick-capture from any buffer =================================
 Type " ta"
@@ -159,7 +170,14 @@ Escape
 Sleep 2200ms
 Type ":w"
 Enter
-Sleep 2800ms
+# Same apply-confirmation picker as Scene 1 — answer it, then dismiss the
+# follow-up hit-enter prompt from the multi-line apply notify.
+Sleep 1200ms
+Type "1"
+Enter
+Sleep 900ms
+Enter
+Sleep 1500ms
 
 # === End card (10s, same animation as intro) ================================
 Type ":qa!"
