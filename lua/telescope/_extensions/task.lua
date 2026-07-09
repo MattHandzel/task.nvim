@@ -15,15 +15,7 @@ local action_state = require("telescope.actions.state")
 local previewers = require("telescope.previewers")
 
 local function tw_export(filter)
-  local cmd = string.format(
-    "task rc.bulk=0 rc.confirmation=off rc.json.array=on %s export",
-    filter or "status:pending")
-  local out = vim.fn.system(cmd)
-  local json_start = out:find("%[")
-  if json_start and json_start > 1 then out = out:sub(json_start) end
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(tasks) ~= "table" then return {} end
-  return tasks
+  return require("taskwarrior.taskmd").shell_export(filter or "status:pending") or {}
 end
 
 local function entry_for(task)

@@ -20,18 +20,12 @@ function M.run(hours)
   -- Taskwarrior's entry.after: expects an ISO-like date. `now-Nh` is simpler.
   local filter = string.format(
     "status:pending entry.after:now-%dh project: -TAGGED", hours)
-  local cmd = string.format(
-    "task rc.bulk=0 rc.confirmation=off rc.json.array=on %s export", filter)
-  local out, ok = run(cmd)
-  if not ok then
+  local tasks = require("taskwarrior.taskmd").shell_export(filter)
+  if not tasks then
     require("taskwarrior.notify")("error",
       "taskwarrior.nvim: failed to fetch inbox", vim.log.levels.ERROR)
     return
   end
-  local js = out:find("%[")
-  if js and js > 1 then out = out:sub(js) end
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(tasks) ~= "table" then tasks = {} end
 
   -- Guard: also filter client-side, because TW's `project:` (empty) filter
   -- can be finicky across TW versions.

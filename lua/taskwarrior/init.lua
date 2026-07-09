@@ -199,9 +199,31 @@ function M._setup_commands()
 end
 
 -- Completion callbacks (ArgLead, CmdLine, CursorPos) -> list of strings
-function M._complete_filter(arg_lead, cmd_line, _cursor_pos)
-  local words = vim.split(cmd_line, "%s+")
-  return complete_filter(words[#words] or "")
+--
+-- These back vim.fn.input() prompts, where <Tab> replaces the ENTIRE typed
+-- text with the chosen candidate (input() has no per-word completion). Each
+-- candidate must therefore carry the untouched leading tokens as a prefix —
+-- returning bare last-token candidates wipes the rest of the filter
+-- (issue #4).
+local function complete_last_token(cmd_line, complete_fn)
+  local prefix, last = cmd_line:match("^(.*%s)(%S*)$")
+  if not prefix then prefix, last = "", cmd_line end
+  local results = complete_fn(last or "")
+  if prefix ~= "" then
+    for i, r in ipairs(results) do results[i] = prefix .. r end
+  end
+  return results
+end
+
+function M._complete_filter(_arg_lead, cmd_line, _cursor_pos)
+  return complete_last_token(cmd_line or "", complete_filter)
+end
+
+-- Completion for the `gm` modify prompt (buffer.lua). Modify args share the
+-- filter vocabulary (+tag, project:, priority:, due:, …). Registered as
+-- "custom," completion, so return newline-separated matches.
+function M._complete_modify(_arg_lead, cmd_line, _cursor_pos)
+  return table.concat(complete_last_token(cmd_line or "", complete_filter), "\n")
 end
 
 function M._complete_sort(arg_lead, _cmd_line, _cursor_pos)
@@ -228,15 +250,7 @@ M.api = {}
 M.api.export = function(filter_args)
   filter_args = filter_args or {}
   local filter_str = type(filter_args) == "table" and table.concat(filter_args, " ") or filter_args
-  local cmd = string.format("task rc.bulk=0 rc.confirmation=off rc.json.array=on %s export",
-    filter_str)
-  local out, ok = run(cmd)
-  if not ok or not out or out == "" then return {} end
-  local json_start = out:find("%[")
-  if json_start and json_start > 1 then out = out:sub(json_start) end
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(tasks) ~= "table" then return {} end
-  return tasks
+  return require("taskwarrior.taskmd").shell_export(filter_str) or {}
 end
 
 M.api.get_task_on_cursor = function()

@@ -23,17 +23,9 @@ function M.delegate_one()
     vim.notify("taskwarrior.nvim: no UUID on this line", vim.log.levels.WARN)
     return
   end
-  local out, ok = run(
-    string.format("task rc.bulk=0 rc.confirmation=off rc.json.array=on %s export", short_uuid))
-  if not ok or not out or out == "" then
+  local tasks = require("taskwarrior.taskmd").shell_export(short_uuid)
+  if not tasks or #tasks == 0 then
     vim.notify("taskwarrior.nvim: failed to export task", vim.log.levels.ERROR)
-    return
-  end
-  local json_start = out:find("%[")
-  if json_start and json_start > 1 then out = out:sub(json_start) end
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(tasks) ~= "table" or #tasks == 0 then
-    vim.notify("taskwarrior.nvim: failed to parse task", vim.log.levels.ERROR)
     return
   end
   return tasks[1], short_uuid
@@ -213,17 +205,9 @@ function M.collect(range)
   end
 
   local filter = table.concat(short_uuids, " ")
-  local out, ok = run(
-    string.format("task rc.bulk=0 rc.confirmation=off rc.json.array=on %s export", filter))
-  if not ok or not out or out == "" then
+  local tasks = require("taskwarrior.taskmd").shell_export(filter)
+  if not tasks or #tasks == 0 then
     vim.notify("taskwarrior.nvim: failed to export tasks", vim.log.levels.ERROR)
-    return nil
-  end
-  local json_start = out:find("%[")
-  if json_start and json_start > 1 then out = out:sub(json_start) end
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(tasks) ~= "table" or #tasks == 0 then
-    vim.notify("taskwarrior.nvim: failed to parse tasks", vim.log.levels.ERROR)
     return nil
   end
 

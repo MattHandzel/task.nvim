@@ -6,7 +6,7 @@ local M = {}
 -- All valid top-level setup keys (explicit list — includes nil-defaulted keys
 -- that pairs(defaults) would skip).
 local KNOWN_KEYS = {
-	"on_delete", "confirm", "sort", "group", "fields",
+	"on_delete", "confirm", "sort", "group", "fields", "wrap",
 	"capture_key", "open_key", "filter_key", "sort_key",
 	"group_key", "project_add_key", "filters", "projects", "icons",
 	"border_style", "capture_width", "capture_height", "capture_confirm_close",
@@ -30,6 +30,7 @@ local KNOWN_DELEGATE_KEYS = {
 local TOP_LEVEL_TYPES = {
 	on_delete             = "string",
 	confirm               = "boolean",
+	wrap                  = "boolean",
 	sort                  = "string",
 	group                 = "string",    -- nil OK
 	fields                = "table",     -- nil OK
