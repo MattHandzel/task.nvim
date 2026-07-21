@@ -429,14 +429,22 @@ end
 M._fields_to_args = fields_to_args
 
 function M.tw_add(desc, fields)
+  -- rc.verbose=new-uuid forces "Created task <uuid>." to stdout even when the
+  -- user has `verbose=nothing` in their .taskrc. Without it, tw_add returns ""
+  -- and callers that depend on a UUID (capture.submit) wrongly assume failure.
   local argv = { "task" }
   for _, a in ipairs(BASE_RC) do argv[#argv + 1] = a end
+  argv[#argv + 1] = "rc.verbose=new-uuid"
   argv[#argv + 1] = "add"
   argv[#argv + 1] = "description:" .. desc
   for _, a in ipairs(fields_to_args(fields or {})) do argv[#argv + 1] = a end
-  local out, _ = run(argv)
+  local out, code = run(argv)
+  if code ~= 0 then return "", false end
   local uuid = (out or ""):match("[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+")
-  return uuid or ""
+  -- Keep the UUID as the first return value for existing callers. The second
+  -- value distinguishes a failed command from a successful mutation whose
+  -- output could not be parsed; capture must not retry the latter (issue #7).
+  return uuid or "", true
 end
 
 function M.tw_modify(uuid, fields)

@@ -98,6 +98,11 @@ function M.open(refresh_fn)
     -- Greedy-parse the line so utility:20, project:X, +tag, due:tom etc.
     -- become real fields even when they appear in the middle of free-form
     -- text (e.g. between a sentence and a trailing code block).
+    --
+    -- IMPORTANT: only fall back to a raw add if PARSING failed. If parsing
+    -- succeeded but tw_add couldn't extract a UUID, the task may still have
+    -- been created — falling back would create a duplicate with the unparsed
+    -- line as the description. (This was the v1.5.0 due:today bug.)
     local ok_m, tm = pcall(require, "taskwarrior.taskmd")
     if ok_m then
       local udas = {}
@@ -105,16 +110,25 @@ function M.open(refresh_fn)
       if ok_u and type(list) == "table" then udas = list end
       local desc, fields = tm.parse_capture(line, udas)
       if desc and desc ~= "" then
-        local new_uuid = tm.tw_add(desc, fields)
+        local new_uuid, add_ok = tm.tw_add(desc, fields)
         if new_uuid and new_uuid ~= "" then
           vim.notify("taskwarrior.nvim: added task")
-          refresh_fn()
-          return
+        elseif add_ok then
+          vim.notify(
+            "taskwarrior.nvim: added task, but Taskwarrior did not report its UUID; not retrying",
+            vim.log.levels.WARN
+          )
+        else
+          vim.notify("taskwarrior.nvim: add failed", vim.log.levels.ERROR)
         end
+        refresh_fn()
+        return
       end
     end
 
-    -- Fallback: raw add as literal description
+    -- Fallback only when parse_capture itself failed (taskmd module missing,
+    -- or input was unparseable). Use literal add so the user doesn't lose
+    -- their typed content.
     local escaped = line:gsub("'", "'\\''")
     local _, ok = run("task rc.bulk=0 rc.confirmation=off add -- '" .. escaped .. "'")
     if ok then
