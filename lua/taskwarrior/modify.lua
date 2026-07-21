@@ -141,13 +141,8 @@ end
 -- ---------------------------------------------------------------------------
 
 local function get_task_json(uuid)
-  local out, ok = run(string.format(
-    "task rc.bulk=0 rc.confirmation=off rc.json.array=on %s export", uuid))
-  if not ok or not out or out == "" then return nil end
-  local json_start = out:find("%[")
-  if json_start and json_start > 1 then out = out:sub(json_start) end
-  local parsed_ok, arr = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(arr) ~= "table" or not arr[1] then return nil end
+  local arr = require("taskwarrior.taskmd").shell_export(uuid)
+  if not arr or not arr[1] then return nil end
   return arr[1]
 end
 
@@ -201,13 +196,8 @@ end
 
 --- Collect existing project names from pending tasks (de-duplicated, sorted).
 local function existing_projects()
-  local out, ok = run(
-    "task rc.bulk=0 rc.confirmation=off rc.json.array=on status:pending export")
-  if not ok or not out or out == "" then return {} end
-  local json_start = out:find("%[")
-  if json_start and json_start > 1 then out = out:sub(json_start) end
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(tasks) ~= "table" then return {} end
+  local tasks = require("taskwarrior.taskmd").shell_export("status:pending")
+  if not tasks then return {} end
   local seen, names = {}, {}
   for _, t in ipairs(tasks) do
     if t.project and not seen[t.project] then
@@ -221,13 +211,8 @@ end
 
 --- Collect existing tags from pending tasks.
 local function existing_tags()
-  local out, ok = run(
-    "task rc.bulk=0 rc.confirmation=off rc.json.array=on status:pending export")
-  if not ok or not out or out == "" then return {} end
-  local json_start = out:find("%[")
-  if json_start and json_start > 1 then out = out:sub(json_start) end
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(tasks) ~= "table" then return {} end
+  local tasks = require("taskwarrior.taskmd").shell_export("status:pending")
+  if not tasks then return {} end
   local seen, names = {}, {}
   for _, t in ipairs(tasks) do
     for _, tag in ipairs(t.tags or {}) do

@@ -374,6 +374,7 @@ Full schema with defaults: >
       confirm           = true,
       sort              = "urgency-",
       group             = nil,
+      wrap              = true,       -- false = don't line-wrap task buffers
       fields            = nil,
       capture_key       = "<leader>ta",
       open_key          = "<leader>tt",

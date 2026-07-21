@@ -17,12 +17,8 @@ end
 
 local function compute()
   local today = os.date("!%Y-%m-%d")
-  local out = vim.fn.system(
-    "task rc.bulk=0 rc.confirmation=off rc.json.array=on status:pending export")
-  local json_start = out:find("%[")
-  if json_start and json_start > 1 then out = out:sub(json_start) end
-  local ok, tasks = pcall(vim.fn.json_decode, out)
-  if not ok or type(tasks) ~= "table" then return "" end
+  local tasks = require("taskwarrior.taskmd").shell_export("status:pending")
+  if not tasks then return "" end
 
   local overdue = 0
   local next_due, next_due_date, next_desc

@@ -214,6 +214,7 @@ require("taskwarrior").setup({
   confirm = true,              -- show confirmation dialog before applying
   sort = "urgency-",           -- default sort (field+ for asc, field- for desc)
   group = nil,                 -- default group field (nil to disable)
+  wrap = true,                 -- line-wrap task buffers (false = one line per task)
   fields = nil,                -- fields to show (nil = all)
   capture_key = "<leader>ta",  -- global quick-capture (nil to disable)
   open_key = "<leader>tt",     -- global open-task-buffer (nil to disable)

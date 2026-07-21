@@ -12,14 +12,7 @@ end
 
 local function export_tasks(filter)
   filter = filter or "status:pending or status:completed"
-  local cmd = string.format("task rc.bulk=0 rc.confirmation=off rc.json.array=on %s export", filter)
-  local out, ok = run(cmd)
-  if not ok or not out or out == "" then return {} end
-  local json_start = out:find("%[")
-  if json_start and json_start > 1 then out = out:sub(json_start) end
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(tasks) ~= "table" then return {} end
-  return tasks
+  return require("taskwarrior.taskmd").shell_export(filter) or {}
 end
 
 -- Highlight groups for views

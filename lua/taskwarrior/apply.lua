@@ -194,14 +194,20 @@ function M.on_write(bufnr, refresh_fn, do_apply_fn)
       prompt = string.format("Apply %d change(s)?", #actions)
     end
 
-    vim.ui.select(choices, { prompt = prompt }, function(choice)
-      if not choice or choice == "Cancel" then
-        vim.notify("taskwarrior.nvim: cancelled")
-        vim.fn.delete(tmpfile)
-        return
-      end
-      local apply_force = choice == "Apply force (overwrite external changes)"
-      do_apply_fn(bufnr, tmpfile, on_delete, { force = apply_force })
+    -- Deferred via vim.schedule: on_write runs inside the BufWriteCmd
+    -- handler, and float-based vim.ui.select backends (dressing, snacks,
+    -- telescope, …) opened from an autocmd context can't take focus — the
+    -- picker renders but the cursor stays in the task buffer (issue #3).
+    vim.schedule(function()
+      vim.ui.select(choices, { prompt = prompt }, function(choice)
+        if not choice or choice == "Cancel" then
+          vim.notify("taskwarrior.nvim: cancelled")
+          vim.fn.delete(tmpfile)
+          return
+        end
+        local apply_force = choice == "Apply force (overwrite external changes)"
+        do_apply_fn(bufnr, tmpfile, on_delete, { force = apply_force })
+      end)
     end)
   else
     if not force then

@@ -19,6 +19,11 @@ M.defaults = {
 	confirm = true, -- show confirmation dialog before applying
 	sort = "urgency-", -- default sort
 	group = nil, -- default group field (nil to disable)
+	-- Line wrap in task buffers/floats. Default true: without wrap, curswant
+	-- preservation on long task lines makes j/k shift the viewport
+	-- horizontally ("j doesn't work"). Set false for one-line-per-task
+	-- (issue #3); long lines then extend past the right edge.
+	wrap = true,
 	fields = nil, -- fields to show (nil = all)
 	capture_key = "<leader>ta", -- global keybind for quick capture (nil to disable)
 	open_key = "<leader>tt", -- global keybind to open task buffer (nil to disable)

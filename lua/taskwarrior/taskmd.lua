@@ -30,6 +30,20 @@ local DATE_FIELDS = M.DATE_FIELDS
 
 local BASE_RC = { "rc.bulk=0", "rc.confirmation=off" }
 
+-- rc overrides for READ-ONLY invocations whose stdout gets parsed (export
+-- JSON, _udas/_projects/_tags line lists). vim.fn.system merges stderr into
+-- stdout, so chatter must be suppressed at the source (issue #5):
+--   rc.verbose=nothing — silences footnotes, the `task news` nag, and
+--                        "Configuration override" notices (which our own
+--                        rc.* args would otherwise trigger for users with
+--                        verbose=override).
+--   rc.color=off       — guards against forced-color configs injecting ANSI
+--                        escapes into the parse stream.
+-- Hook output can still leak through; decode_json_array tolerates that.
+-- Mutation paths keep BASE_RC — tw_add parses "Created task <uuid>" from
+-- verbose output, so silencing there would break it.
+local READ_RC = { "rc.bulk=0", "rc.confirmation=off", "rc.verbose=nothing", "rc.color=off" }
+
 -- ---------------------------------------------------------------------------
 -- Small helpers
 -- ---------------------------------------------------------------------------
@@ -276,9 +290,93 @@ local function normalize_duration_minutes(args)
   return out
 end
 
+-- Extract + decode the JSON array from `task … export` output.
+--
+-- vim.fn.system merges stderr into stdout, so Taskwarrior chatter (the
+-- `task news` nag, config-override notices, hook output) can precede or
+-- follow the JSON — and may itself contain `[`/`]`. Slicing from the first
+-- `[` (the pre-1.5.1 behavior) then fails to decode and callers silently
+-- treated that as "zero tasks", rendering a blank buffer (issue #5).
+-- Instead, try progressively narrower start/end bracket candidates until
+-- one decodes. Returns a table, or nil if no slice parses.
+function M.decode_json_array(text)
+  if not text then return nil end
+  -- Strip ANSI escape sequences first — forced-color configs put `\27[…m`
+  -- on every line, which both defeats bracket scanning and breaks decode.
+  text = text:gsub("\27%[[%d;:]*%a", "")
+
+  local ok, parsed = pcall(vim.fn.json_decode, text)
+  if ok and type(parsed) == "table" then return parsed end
+
+  local function try(s)
+    local o, p = pcall(vim.fn.json_decode, s)
+    if o and type(p) == "table" then return p end
+    return nil
+  end
+
+  -- Candidate start positions. Prefer brackets that actually look like the
+  -- head of a task array — `[` followed by `{` or `]` (possibly across a
+  -- newline; TW3 prints one task per line) — over arbitrary `[`s inside
+  -- chatter. Candidate ends: every `]`, tried right-to-left (noise after
+  -- the JSON is rarer than noise before it, so the last `]` usually wins).
+  local starts = {}
+  for pos in text:gmatch("()%[%s*[{%]]") do starts[#starts + 1] = pos end
+  for pos in text:gmatch("()%[") do
+    if #starts >= 24 then break end
+    if not vim.tbl_contains(starts, pos) then starts[#starts + 1] = pos end
+  end
+  local ends = {}
+  for pos in text:gmatch("()%]") do ends[#ends + 1] = pos end
+
+  local attempts = 0
+  for _, i in ipairs(starts) do
+    for e = #ends, 1, -1 do
+      local last = ends[e]
+      if last > i then
+        attempts = attempts + 1
+        local result = try(text:sub(i, last))
+        if result then return result end
+        if attempts >= 64 then break end
+      end
+    end
+    if attempts >= 64 then break end
+  end
+
+  -- Last resort for chatter interleaved *between* JSON lines (e.g. a hook
+  -- that prints once per task): both streams are line-buffered, so keep
+  -- only lines whose first character can appear in TW3's line-per-task
+  -- export format and re-join.
+  local kept = {}
+  for line in text:gmatch("[^\r\n]+") do
+    local head = line:match("^%s*(.)")
+    if head == "[" or head == "]" or head == "{" then kept[#kept + 1] = line end
+  end
+  if #kept > 0 then
+    return try(table.concat(kept, "\n"))
+  end
+  return nil
+end
+
+-- Shell-string export for callers that assemble their filter as a plain
+-- string (graph, inbox, views, telescope, …). The shell form lets us
+-- redirect stderr away from the parse stream entirely — combined with
+-- READ_RC suppression and decode_json_array this is the hardened
+-- replacement for the ten hand-rolled `find("%[")` slices that issue #5
+-- exposed. Returns a list (possibly empty), or nil when the command failed
+-- or its output was unparseable.
+function M.shell_export(filter_str)
+  if not require("taskwarrior.runtime").ensure_available() then return nil end
+  local cmd = string.format(
+    "task %s rc.json.array=on %s export 2>/dev/null",
+    table.concat(READ_RC, " "), filter_str or "")
+  local out = vim.fn.system(cmd)
+  if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then return nil end
+  return M.decode_json_array(out)
+end
+
 function M.tw_export(filter_args)
   local argv = { "task" }
-  for _, a in ipairs(BASE_RC) do argv[#argv + 1] = a end
+  for _, a in ipairs(READ_RC) do argv[#argv + 1] = a end
   argv[#argv + 1] = "rc.json.array=on"
   for _, a in ipairs(normalize_tag_filters(normalize_duration_minutes(filter_args))) do argv[#argv + 1] = a end
   argv[#argv + 1] = "export"
@@ -286,12 +384,14 @@ function M.tw_export(filter_args)
   if rc ~= 0 and rc ~= 1 then
     error("task export failed: " .. tostring(text))
   end
-  if not text or text == "" then return {} end
-  local i = text:find("%[")
-  if i and i > 1 then text = text:sub(i) end
-  if not i then return {} end
-  local ok, parsed = pcall(vim.fn.json_decode, text)
-  if not ok or type(parsed) ~= "table" then return {} end
+  if not text or vim.trim(text) == "" then return {} end
+  local parsed = M.decode_json_array(text)
+  if not parsed then
+    -- Don't degrade to "zero tasks": that renders as a blank buffer with no
+    -- error and makes refresh a silent no-op (issue #5). Surface what task
+    -- actually printed so the failure is diagnosable.
+    error("task export returned unparseable output:\n" .. text:sub(1, 500))
+  end
   return parsed
 end
 
@@ -370,25 +470,38 @@ M.tw_start  = simple_tw("start")
 M.tw_stop   = simple_tw("stop")
 
 function M.tw_udas()
-  local out, _ = run({ "task", "_udas" })
+  local argv = { "task" }
+  for _, a in ipairs(READ_RC) do argv[#argv + 1] = a end
+  argv[#argv + 1] = "_udas"
+  local out, _ = run(argv)
   local known = list_to_set(KNOWN_FIELDS)
   known["priority"] = true
   local result = {}
   for line in (out or ""):gmatch("[^\r\n]+") do
     local u = trim(line)
-    if u ~= "" and not known[u] then result[#result + 1] = u end
+    -- UDA names cannot contain whitespace — a line with spaces is stray
+    -- chatter (news nag, hook output) merged into stdout, not a UDA.
+    if u ~= "" and not u:find("%s") and not known[u] then result[#result + 1] = u end
   end
   return result
 end
 
 function M.tw_completions()
-  local p_out = run({ "task", "_projects" })
-  local t_out = run({ "task", "_tags" })
+  local function helper(cmd)
+    local argv = { "task" }
+    for _, a in ipairs(READ_RC) do argv[#argv + 1] = a end
+    argv[#argv + 1] = cmd
+    return run(argv)
+  end
+  local p_out = helper("_projects")
+  local t_out = helper("_tags")
   local function lines(s)
     local out = {}
     for line in (s or ""):gmatch("[^\r\n]+") do
       local v = trim(line)
-      if v ~= "" then out[#out + 1] = v end
+      -- Project and tag names cannot contain whitespace — lines with spaces
+      -- are stray chatter merged into stdout, not completion candidates.
+      if v ~= "" and not v:find("%s") then out[#out + 1] = v end
     end
     return out
   end

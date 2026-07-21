@@ -112,13 +112,8 @@ local function apply_custom_sort(bufnr)
   -- Export tasks to get full data for the custom function
   local filter = vim.b[bufnr].task_filter or ""
   local export_filter = filter ~= "" and filter or "status:pending"
-  local cmd = string.format("task rc.bulk=0 rc.confirmation=off rc.json.array=on %s export", export_filter)
-  local out, ok = run(cmd)
-  if not ok or not out or out == "" then return end
-  local json_start = out:find("%[")
-  if json_start and json_start > 1 then out = out:sub(json_start) end
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(tasks) ~= "table" then return end
+  local tasks = require("taskwarrior.taskmd").shell_export(export_filter)
+  if not tasks then return end
 
   -- Apply multiplicative urgency coefficients (same logic as taskmd.lua render).
   -- Non-numeric values go through user-configurable mappers.
@@ -332,23 +327,38 @@ end
 
 M._relative_date = relative_date  -- exported for e2e testing
 
+local es_ns = vim.api.nvim_create_namespace("taskwarrior_empty_state")
+
+-- Visible empty-state hint. A zero-task render is just the header comment,
+-- which conceallevel=3 hides entirely — the user sees a blank buffer with no
+-- explanation of why, and refresh looks like a no-op (issue #5). Rendered as
+-- virt_lines, not buffer text, so `:w` round-trips untouched.
+local function apply_empty_state(bufnr)
+  vim.api.nvim_buf_clear_namespace(bufnr, es_ns, 0, -1)
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+    if uuid_from_line(line) then return end
+  end
+  local cfg_ok, cfg = pcall(require, "taskwarrior.config")
+  local prefix = (cfg_ok and cfg.options.command_prefix) or "Tw"
+  local filter = vim.b[bufnr].task_filter
+  local shown = (filter and filter ~= "") and filter or "(all pending)"
+  pcall(vim.api.nvim_buf_set_extmark, bufnr, es_ns, 0, 0, {
+    virt_lines = {
+      { { "", "Comment" } },
+      { { "  No tasks match filter: " .. shown, "Comment" } },
+      { { ("  :%sFilter <expr> to change it · :%sAdd to create a task"):format(prefix, prefix), "Comment" } },
+    },
+  })
+end
+M._apply_empty_state = apply_empty_state  -- exported for testing
+
 local function apply_virtual_text(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, vt_ns, 0, -1)
+  apply_empty_state(bufnr)
   local filter = vim.b[bufnr].task_filter or ""
   local export_filter = filter ~= "" and filter or "status:pending"
-  local cmd = string.format(
-    "task rc.bulk=0 rc.confirmation=off rc.json.array=on %s export", export_filter)
-  local out, ok = run(cmd)
-  if not ok or not out or out == "" then return end
-
-  -- Handle warnings before JSON
-  local json_start = out:find("%[")
-  if json_start and json_start > 1 then
-    out = out:sub(json_start)
-  end
-
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(tasks) ~= "table" then return end
+  local tasks = require("taskwarrior.taskmd").shell_export(export_filter)
+  if not tasks then return end
 
   local config = require("taskwarrior.config")
   local icons = require("taskwarrior.icons")
@@ -1107,7 +1117,8 @@ function M.setup_buf_autocmds(bufnr, on_write_fn)
       -- Wrap prevents horizontal-scroll disorientation on j/k with long task
       -- lines. Without wrap, curswant preservation causes the viewport to
       -- shift horizontally, making it look like j "doesn't work".
-      vim.wo[0].wrap = true
+      -- Overridable via setup{ wrap = false } (issue #3).
+      vim.wo[0].wrap = require("taskwarrior.config").options.wrap ~= false
     end,
   })
 
@@ -1252,7 +1263,7 @@ function M.open_task_buf(filter_str, on_write_fn, detect_project_fn)
       vim.api.nvim_win_set_buf(0, b)
       vim.wo[0].conceallevel = 3
       vim.wo[0].concealcursor = "nvic"
-      vim.wo[0].wrap = true
+      vim.wo[0].wrap = config.options.wrap ~= false
       -- Reserve two sign cells for priority + status glyphs. `auto:2` only
       -- shows the column when a sign is present, so tasks with no priority
       -- or status don't waste horizontal space.
@@ -1286,7 +1297,7 @@ function M.open_task_buf(filter_str, on_write_fn, detect_project_fn)
   vim.api.nvim_win_set_buf(0, bufnr)
   vim.wo[0].conceallevel = 3
   vim.wo[0].concealcursor = "nvic"
-  vim.wo[0].wrap = true
+  vim.wo[0].wrap = config.options.wrap ~= false
 
   -- Set name safely — wipe stale buffer with same name if needed
   local buf_name = "Tasks: " .. filter_str
@@ -1350,7 +1361,7 @@ function M.open_float(filter_str)
   })
   vim.wo[win].conceallevel = 3
   vim.wo[win].concealcursor = "nvic"
-  vim.wo[win].wrap = true
+  vim.wo[win].wrap = config.options.wrap ~= false
 
   vim.keymap.set("n", "q", function()
     pcall(vim.api.nvim_win_close, win, true)

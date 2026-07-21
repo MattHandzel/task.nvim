@@ -1192,6 +1192,13 @@ describe("e2e confirm-dialog apply path", function()
 
     stub_select("Apply")
     vim.api.nvim_buf_call(bufnr, function() vim.cmd("silent! write") end)
+    -- The confirm picker is vim.schedule()d out of the BufWriteCmd context
+    -- (issue #3: float-based ui.select backends can't take focus inside an
+    -- autocmd) — drain the loop until the stubbed answer has been applied.
+    vim.wait(2000, function()
+      local cur = task_export("uuid:" .. t.uuid:sub(1, 8))[1]
+      return cur and cur.status == "completed"
+    end, 10)
     restore_ui()
 
     local t_after = task_export("uuid:" .. t.uuid:sub(1, 8))[1]
@@ -1216,11 +1223,100 @@ describe("e2e confirm-dialog apply path", function()
 
     stub_select("Cancel")
     vim.api.nvim_buf_call(bufnr, function() vim.cmd("silent! write") end)
+    -- Drain the vim.schedule()d confirm picker (see the Apply test above).
+    vim.wait(300, function() return false end, 10)
     restore_ui()
 
     local t_after = task_export("uuid:" .. t.uuid:sub(1, 8))[1]
     assert.equals("pending", t_after.status,
       "cancel should leave the task pending")
+  end)
+end)
+
+-- =========================================================================
+-- Issue #5 — render must survive a hook that pollutes export output
+-- =========================================================================
+
+describe("e2e noisy-hook resilience (issue #5)", function()
+  local hooks_dir = os.getenv("TASKDATA") .. "/hooks"
+  local hook_path = hooks_dir .. "/on-launch.99-noise.sh"
+
+  local function write_hook()
+    vim.fn.mkdir(hooks_dir, "p")
+    local f = assert(io.open(hook_path, "w"))
+    f:write("#!/bin/sh\necho 'E2E NOISE [hook chatter] before JSON'\nexit 0\n")
+    f:close()
+    vim.fn.system("chmod +x " .. vim.fn.shellescape(hook_path))
+  end
+
+  local function remove_hook()
+    vim.fn.delete(hook_path)
+  end
+
+  it("renders tasks even when an on-launch hook prints to stdout", function()
+    run_shell('task rc.confirmation=off rc.bulk=0 add "Noise survivor" project:hooknoise')
+    write_hook()
+    -- Sanity probe: does the hook actually pollute the raw export stream on
+    -- this Taskwarrior version? That's the exact condition of issue #5.
+    -- (Recorded into the assert message; the render must survive either way.)
+    local raw = vim.fn.system(
+      "task rc.bulk=0 rc.confirmation=off rc.json.array=on status:pending export")
+    local polluted = raw:find("E2E NOISE", 1, true) ~= nil
+
+    -- Fresh window on an empty scratch buffer so a failed open can't
+    -- inherit task lines from a previous test's buffer (spurious pass).
+    vim.cmd("enew")
+    local ok, err = pcall(function()
+      require("taskwarrior").open("project:hooknoise")
+    end)
+    local bufnr = vim.api.nvim_get_current_buf()
+    local has_task = false
+    for _, l in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+      if l:find("uuid:", 1, true) then has_task = true break end
+    end
+    remove_hook()
+
+    assert.is_true(ok, "render must not error under hook noise: " .. tostring(err))
+    assert.is_true(has_task,
+      ("render must show tasks despite hook noise (raw stream polluted: %s)"):format(
+        tostring(polluted)))
+  end)
+end)
+
+-- =========================================================================
+-- Issue #3 — wrap option / Issue #5 — visible empty state (real render)
+-- =========================================================================
+
+describe("e2e wrap option + empty state", function()
+  it("setup{ wrap = false } opens the task buffer with wrap off", function()
+    local config = require("taskwarrior.config")
+    local saved = config.options.wrap
+    config.options.wrap = false
+    require("taskwarrior").open("project:demo")
+    assert.is_false(vim.wo[0].wrap, "wrap=false must disable line wrap (issue #3)")
+    config.options.wrap = saved
+  end)
+
+  it("default keeps wrap on", function()
+    require("taskwarrior").open("project:demo")
+    assert.is_true(vim.wo[0].wrap)
+  end)
+
+  it("a filter matching zero tasks shows the empty-state hint, not a blank buffer", function()
+    require("taskwarrior").open("project:definitely-does-not-exist-xyz")
+    local bufnr = vim.api.nvim_get_current_buf()
+    local es_ns = vim.api.nvim_create_namespace("taskwarrior_empty_state")
+    local marks = vim.api.nvim_buf_get_extmarks(bufnr, es_ns, 0, -1, { details = true })
+    assert.is_true(#marks > 0,
+      "zero-task render must show a visible hint instead of a concealed header (issue #5)")
+    assert.truthy(vim.inspect(marks):find("definitely%-does%-not%-exist"))
+  end)
+
+  it("a filter matching tasks shows no empty-state hint", function()
+    require("taskwarrior").open("project:demo")
+    local bufnr = vim.api.nvim_get_current_buf()
+    local es_ns = vim.api.nvim_create_namespace("taskwarrior_empty_state")
+    assert.are.same({}, vim.api.nvim_buf_get_extmarks(bufnr, es_ns, 0, -1, {}))
   end)
 end)
 
