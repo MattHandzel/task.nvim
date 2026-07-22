@@ -1,4 +1,5 @@
 local M = {}
+local command = require("taskwarrior.command")
 
 M.check = function()
   vim.health.start("taskwarrior.nvim")
@@ -12,7 +13,7 @@ M.check = function()
 
   -- Taskwarrior
   if require("taskwarrior.runtime").is_task_available() then
-    local tw_version = vim.fn.system("task --version"):gsub("%s+$", "")
+    local tw_version = command.read({ "--version" }, { rc = {} }).output:gsub("%s+$", "")
     local major = tonumber(tw_version:match("^(%d+)"))
     if major and major >= 2 then
       vim.health.ok("Taskwarrior " .. tw_version)
@@ -26,7 +27,7 @@ M.check = function()
   -- Task data directory. Skip when `task` is missing — `task _get` would
   -- silently shell-fail and we'd report a bogus default path.
   if require("taskwarrior.runtime").is_task_available() then
-    local taskdata = vim.fn.system("task _get rc.data.location"):gsub("%s+$", "")
+    local taskdata = command.read({ "_get", "rc.data.location" }).output:gsub("%s+$", "")
     if taskdata ~= "" and vim.fn.isdirectory(taskdata) == 1 then
       vim.health.ok("Taskwarrior data at " .. taskdata)
     else

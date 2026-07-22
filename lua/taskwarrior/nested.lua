@@ -14,11 +14,7 @@
 -- at the direct children.
 
 local M = {}
-
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  return out, vim.v.shell_error == 0
-end
+local command = require("taskwarrior.command")
 
 local function uuid_from_line(line)
   return line:match("<!%-%-.*uuid:([0-9a-fA-F]+).*%-%->")
@@ -68,9 +64,8 @@ function M.link_children()
     return
   end
   local depends = table.concat(children, ",")
-  local _, ok = run(string.format(
-    "task rc.bulk=0 rc.confirmation=off %s modify depends:%s", parent, depends))
-  if ok then
+  local result = command.mutate({ parent, "modify", "depends:" .. depends })
+  if result.ok then
     notify("modify", string.format(
       "taskwarrior.nvim: linked %d child task%s → %s",
       #children, #children > 1 and "s" or "", parent:sub(1, 8)))
@@ -98,15 +93,17 @@ function M.unlink_children()
   for _, uuid in ipairs(children) do
     table.insert(minus, "-" .. uuid)
   end
-  local _, ok = run(string.format(
-    "task rc.bulk=0 rc.confirmation=off %s modify depends:%s",
-    parent, table.concat(minus, ",")))
-  if ok then
+  local result = command.mutate({
+    parent, "modify", "depends:" .. table.concat(minus, ","),
+  })
+  if result.ok then
     notify("modify", "taskwarrior.nvim: unlinked children")
     local bufnr = vim.api.nvim_get_current_buf()
     if vim.b[bufnr].task_filter ~= nil then
       pcall(function() require("taskwarrior.buffer").refresh_buf(bufnr) end)
     end
+  else
+    notify("error", "taskwarrior.nvim: unlink failed", vim.log.levels.ERROR)
   end
 end
 

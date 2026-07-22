@@ -1,25 +1,15 @@
 local M = {}
-
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  local ok = vim.v.shell_error == 0
-  return out, ok
-end
+local command = require("taskwarrior.command")
 
 -- run_review: walk through pending tasks one by one.
 -- open_fn: callback(filter_str) to open a task buffer (M.open from init)
 function M.run(open_fn)
-  local out, ok = run(
-    "task rc.bulk=0 rc.confirmation=off rc.json.array=on status:pending export")
-  if not ok or not out or out == "" then
+  local tasks = require("taskwarrior.taskmd").shell_export("status:pending")
+  if not tasks then
     vim.notify("taskwarrior.nvim: failed to export tasks", vim.log.levels.ERROR)
     return
   end
-  local js = out
-  local s = js:find("%[")
-  if s and s > 1 then js = js:sub(s) end
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, js)
-  if not parsed_ok or type(tasks) ~= "table" or #tasks == 0 then
+  if #tasks == 0 then
     vim.notify("taskwarrior.nvim: no pending tasks", vim.log.levels.INFO)
     return
   end
@@ -62,16 +52,34 @@ function M.run(open_fn)
       if key == "k" then
         idx = idx + 1; step()
       elseif key == "d" then
-        run(string.format("task rc.bulk=0 rc.confirmation=off %s modify wait:tomorrow", short))
+        local result = command.mutate({ short, "modify", "wait:tomorrow" })
+        if not result.ok then
+          vim.notify("taskwarrior.nvim: defer failed\n" .. result.output, vim.log.levels.ERROR)
+          return vim.schedule(step)
+        end
         idx = idx + 1; step()
       elseif key == "x" then
-        run(string.format("task rc.bulk=0 rc.confirmation=off %s done", short))
+        local result = command.mutate({ short, "done" })
+        if not result.ok then
+          vim.notify("taskwarrior.nvim: done failed\n" .. result.output, vim.log.levels.ERROR)
+          return vim.schedule(step)
+        end
         idx = idx + 1; step()
       elseif key == "m" then
         vim.ui.input({ prompt = "Modify " .. short .. ": " }, function(input)
-          if input and input ~= "" then
-            local esc = input:gsub("'", "'\\''")
-            run(string.format("task rc.bulk=0 rc.confirmation=off %s modify '%s'", short, esc))
+          if not input or input == "" then return vim.schedule(step) end
+          local parts, err = command.parse_args(input)
+          if not parts then
+            vim.notify("taskwarrior.nvim: invalid modify arguments\n" .. err,
+              vim.log.levels.ERROR)
+            return vim.schedule(step)
+          end
+          local args = { short, "modify" }
+          vim.list_extend(args, parts)
+          local result = command.mutate(args)
+          if not result.ok then
+            vim.notify("taskwarrior.nvim: modify failed\n" .. result.output, vim.log.levels.ERROR)
+            return vim.schedule(step)
           end
           idx = idx + 1; step()
         end)

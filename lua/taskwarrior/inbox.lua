@@ -7,11 +7,7 @@
 -- organized yet".
 
 local M = {}
-
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  return out, vim.v.shell_error == 0
-end
+local command = require("taskwarrior.command")
 
 -- Accept hours as a single optional integer (default 24).
 function M.run(hours)
@@ -84,46 +80,53 @@ function M.run(hours)
       local action
       if choice == "drop" then
         action = function(cb)
-          run(string.format("task rc.bulk=0 rc.confirmation=off %s delete", short))
-          cb()
+          local result = command.mutate({ short, "delete" })
+          cb(result.ok, result.output)
         end
       elseif choice == "defer (wait 1d)" then
         action = function(cb)
-          run(string.format("task rc.bulk=0 rc.confirmation=off %s modify wait:1d", short))
-          cb()
+          local result = command.mutate({ short, "modify", "wait:1d" })
+          cb(result.ok, result.output)
         end
       elseif choice == "set project" then
         action = function(cb)
           vim.ui.input({ prompt = "Project: " }, function(v)
             if v and v ~= "" then
-              run(string.format("task rc.bulk=0 rc.confirmation=off %s modify project:%s",
-                short, v))
+              local result = command.mutate({ short, "modify", "project:" .. v })
+              return cb(result.ok, result.output)
             end
-            cb()
+            cb(nil, "")
           end)
         end
       elseif choice == "schedule" then
         action = function(cb)
           vim.ui.input({ prompt = "Due (e.g. tomorrow, eow): " }, function(v)
             if v and v ~= "" then
-              run(string.format("task rc.bulk=0 rc.confirmation=off %s modify due:%s",
-                short, v))
+              local result = command.mutate({ short, "modify", "due:" .. v })
+              return cb(result.ok, result.output)
             end
-            cb()
+            cb(nil, "")
           end)
         end
       elseif choice == "tag" then
         action = function(cb)
           vim.ui.input({ prompt = "Tag (no +): " }, function(v)
             if v and v ~= "" then
-              run(string.format("task rc.bulk=0 rc.confirmation=off %s modify +%s",
-                short, v))
+              local result = command.mutate({ short, "modify", "+" .. v })
+              return cb(result.ok, result.output)
             end
-            cb()
+            cb(nil, "")
           end)
         end
       end
-      action(function()
+      action(function(ok, out)
+        if ok == nil then return vim.schedule(walk) end
+        if not ok then
+          require("taskwarrior.notify")("error",
+            "taskwarrior.nvim: inbox action failed\n" .. (out or ""),
+            vim.log.levels.ERROR)
+          return vim.schedule(walk)
+        end
         idx = idx + 1
         vim.schedule(walk)
       end)

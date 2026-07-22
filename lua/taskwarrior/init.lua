@@ -1,10 +1,5 @@
 local M = {}
-
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  local ok = vim.v.shell_error == 0
-  return out, ok
-end
+local command = require("taskwarrior.command")
 
 local function uuid_from_line(line)
   return line:match("<!%-%-.*uuid:([0-9a-fA-F]+).*%-%->")
@@ -117,9 +112,8 @@ function M.start_stop(which)
     vim.notify("taskwarrior.nvim: no UUID on this line", vim.log.levels.WARN)
     return
   end
-  local cmd = string.format("task rc.bulk=0 rc.confirmation=off %s %s", short_uuid, which)
-  local _, ok = run(cmd)
-  if ok then
+  local result = command.mutate({ short_uuid, which })
+  if result.ok then
     vim.notify(string.format("taskwarrior.nvim: %s %s", which, short_uuid))
     if vim.b[bufnr].task_filter ~= nil then refresh_buf(bufnr) end
   else

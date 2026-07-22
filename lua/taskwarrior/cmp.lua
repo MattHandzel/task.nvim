@@ -8,6 +8,7 @@
 --   - bare word  → completes field names (project:, priority:, due:, etc.)
 
 local source = {}
+local command = require("taskwarrior.command")
 
 local KNOWN_FIELDS = {
   "project:", "priority:", "due:", "scheduled:", "recur:",
@@ -23,19 +24,19 @@ local function refresh_cache()
   local now = vim.loop.now() / 1000
   if _cache.mtime + 10 > now and _cache.projects then return end
   _cache.mtime = now
-  local function lines(cmd)
-    local out = vim.fn.systemlist(cmd)
-    if vim.v.shell_error ~= 0 then return {} end
+  local function lines(subcommand)
+    local result = command.read({ subcommand })
+    if not result.ok then return {} end
     local r = {}
-    for _, l in ipairs(out) do
+    for l in result.output:gmatch("[^\r\n]+") do
       l = l:gsub("%s+$", "")
       if l ~= "" then table.insert(r, l) end
     end
     return r
   end
-  _cache.projects = lines("task _projects 2>/dev/null")
-  _cache.tags = lines("task _tags 2>/dev/null")
-  _cache.udas = lines("task _udas 2>/dev/null")
+  _cache.projects = lines("_projects")
+  _cache.tags = lines("_tags")
+  _cache.udas = lines("_udas")
 end
 
 function source.new()

@@ -240,13 +240,14 @@ local function build_payload(report_sections)
   local uname = vim.loop.os_uname()
   local os_str = (uname.sysname or "unknown") .. "/" .. (uname.machine or "unknown")
 
-  local tw_ver_raw = vim.fn.system("task --version 2>/dev/null")
+  local tw_ver_raw = require("taskwarrior.command").read(
+    { "--version" }, { rc = {} }).output
   local tw_ver = vim.trim((tw_ver_raw or ""):match("^[^\n]+") or "")
   if tw_ver == "" then tw_ver = "unknown" end
 
   local backend = opts.backend or "lua"
 
-  local task_count_raw = vim.fn.system("task rc.bulk=0 rc.confirmation=off count 2>/dev/null")
+  local task_count_raw = require("taskwarrior.command").read({ "count" }).output
   local task_count = tonumber((task_count_raw or ""):match("%d+")) or 0
   -- DP-style bucket so we never share a unique-identifying integer.
   -- See lua/taskwarrior/feedback/privacy.lua + the design doc.

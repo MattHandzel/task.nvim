@@ -4,12 +4,6 @@ local M = {}
 -- Track open view buffers for refresh
 M._open_views = {} -- { bufnr = { type = "burndown"|"tree"|..., render_fn = function } }
 
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  local ok = vim.v.shell_error == 0
-  return out, ok
-end
-
 local function export_tasks(filter)
   filter = filter or "status:pending or status:completed"
   return require("taskwarrior.taskmd").shell_export(filter) or {}

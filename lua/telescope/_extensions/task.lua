@@ -13,6 +13,7 @@ local conf = require("telescope.config").values
 local actions = require("telescope.actions")
 local action_state = require("telescope.actions.state")
 local previewers = require("telescope.previewers")
+local command = require("taskwarrior.command")
 
 local function tw_export(filter)
   return require("taskwarrior.taskmd").shell_export(filter or "status:pending") or {}
@@ -42,8 +43,10 @@ local function task_preview()
     title = "Task info",
     define_preview = function(self, entry)
       if not entry or not entry.short then return end
-      local out = vim.fn.systemlist(string.format("task %s info", entry.short))
-      vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, out)
+      local result = command.read({ entry.short, "info" })
+      local lines = vim.split(result.output or "", "\n", { plain = true })
+      if not result.ok then lines = { "Taskwarrior info failed", result.output or "" } end
+      vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
     end,
   })
 end
@@ -75,10 +78,13 @@ local function picker(opts)
       map({ "i", "n" }, "<C-x>", function()
         local selection = action_state.get_selected_entry()
         if not selection or not selection.short then return end
-        vim.fn.system(string.format(
-          "task rc.bulk=0 rc.confirmation=off %s done", selection.short))
+        local result = command.mutate({ selection.short, "done" })
         actions.close(prompt_bufnr)
-        vim.notify("taskwarrior.nvim: marked " .. selection.short .. " done")
+        if result.ok then
+          vim.notify("taskwarrior.nvim: marked " .. selection.short .. " done")
+        else
+          vim.notify("taskwarrior.nvim: done failed\n" .. result.output, vim.log.levels.ERROR)
+        end
       end)
       -- <C-s>: start/stop
       map({ "i", "n" }, "<C-s>", function()
@@ -86,10 +92,14 @@ local function picker(opts)
         if not selection or not selection.short then return end
         local is_started = selection.value and selection.value.start
         local cmd = is_started and "stop" or "start"
-        vim.fn.system(string.format(
-          "task rc.bulk=0 rc.confirmation=off %s %s", selection.short, cmd))
+        local result = command.mutate({ selection.short, cmd })
         actions.close(prompt_bufnr)
-        vim.notify(string.format("taskwarrior.nvim: %s %s", cmd, selection.short))
+        if result.ok then
+          vim.notify(string.format("taskwarrior.nvim: %s %s", cmd, selection.short))
+        else
+          vim.notify("taskwarrior.nvim: " .. cmd .. " failed\n" .. result.output,
+            vim.log.levels.ERROR)
+        end
       end)
       -- <C-d>: delete (with confirmation)
       map({ "i", "n" }, "<C-d>", function()
@@ -100,9 +110,13 @@ local function picker(opts)
           prompt = "Delete task " .. selection.short .. "?",
         }, function(choice)
           if choice ~= "yes" then return end
-          vim.fn.system(string.format(
-            "task rc.bulk=0 rc.confirmation=off %s delete", selection.short))
-          vim.notify("taskwarrior.nvim: deleted " .. selection.short)
+          local result = command.mutate({ selection.short, "delete" })
+          if result.ok then
+            vim.notify("taskwarrior.nvim: deleted " .. selection.short)
+          else
+            vim.notify("taskwarrior.nvim: delete failed\n" .. result.output,
+              vim.log.levels.ERROR)
+          end
         end)
       end)
       -- <C-y>: yank UUID to unnamed register (and + if present)
@@ -127,12 +141,17 @@ local function picker(opts)
         actions.close(prompt_bufnr)
         vim.ui.input({ prompt = "task " .. short .. " " }, function(verb)
           if not verb or verb == "" then return end
-          local out = vim.fn.system(string.format(
-            "task rc.bulk=0 rc.confirmation=off %s %s", short, verb))
-          if vim.v.shell_error == 0 then
+          local args, err = command.parse_args(verb)
+          if not args then
+            vim.notify("taskwarrior.nvim: invalid arguments\n" .. err, vim.log.levels.ERROR)
+            return
+          end
+          table.insert(args, 1, short)
+          local result = command.mutate(args)
+          if result.ok then
             vim.notify("taskwarrior.nvim: " .. short .. " " .. verb)
           else
-            vim.notify("taskwarrior.nvim: failed\n" .. out, vim.log.levels.ERROR)
+            vim.notify("taskwarrior.nvim: failed\n" .. result.output, vim.log.levels.ERROR)
           end
         end)
       end)

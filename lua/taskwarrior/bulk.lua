@@ -4,14 +4,10 @@
 -- entirely (rc.bulk=0 + one invocation per task).
 
 local M = {}
+local command = require("taskwarrior.command")
 
 local function uuid_from_line(line)
   return line:match("<!%-%-.*uuid:([0-9a-fA-F]+).*%-%->")
-end
-
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  return out, vim.v.shell_error == 0
 end
 
 -- range: { line1, line2 } (1-based, inclusive)
@@ -40,15 +36,25 @@ function M.modify(range, spec)
   end
 
   local failed = 0
+  local parts, parse_err = command.parse_args(spec)
+  if not parts then
+    require("taskwarrior.notify")("error",
+      "taskwarrior.nvim: invalid modify arguments\n" .. parse_err,
+      vim.log.levels.ERROR)
+    return
+  end
   for _, u in ipairs(uuids) do
-    local _, ok = run(string.format(
-      "task rc.bulk=0 rc.confirmation=off %s modify %s", u, spec))
-    if not ok then failed = failed + 1 end
+    local args = { u, "modify" }
+    vim.list_extend(args, parts)
+    if not command.mutate(args).ok then failed = failed + 1 end
   end
   local msg = string.format("taskwarrior.nvim: modified %d task%s",
     #uuids - failed, (#uuids - failed) ~= 1 and "s" or "")
   if failed > 0 then msg = msg .. " (" .. failed .. " failed)" end
-  require("taskwarrior.notify")("modify", msg)
+  require("taskwarrior.notify")(
+    failed > 0 and "error" or "modify",
+    msg,
+    failed > 0 and vim.log.levels.ERROR or nil)
 
   if vim.b[bufnr].task_filter ~= nil then
     pcall(function() require("taskwarrior.buffer").refresh_buf(bufnr) end)

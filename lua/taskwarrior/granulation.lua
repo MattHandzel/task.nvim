@@ -16,24 +16,15 @@
 --   M.stop_all_now() — force-stop every started task (used on VimLeavePre)
 
 local M = {}
+local command = require("taskwarrior.command")
 
 local timer = nil
 local augroup = nil
 
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  return out, vim.v.shell_error == 0
-end
-
 -- Return a list of { uuid, description } for every currently-started task.
 local function list_started()
-  local out, ok = run(
-    "task rc.bulk=0 rc.confirmation=off rc.json.array=on +ACTIVE export")
-  if not ok or not out or out == "" then return {} end
-  local js = out:find("%[")
-  if js and js > 1 then out = out:sub(js) end
-  local parsed_ok, tasks = pcall(vim.fn.json_decode, out)
-  if not parsed_ok or type(tasks) ~= "table" then return {} end
+  local tasks = require("taskwarrior.taskmd").shell_export("+ACTIVE")
+  if not tasks then return nil end
   local started = {}
   for _, t in ipairs(tasks) do
     if t.start and t.uuid then
@@ -45,22 +36,35 @@ end
 
 local function stop_all(reason)
   local started = list_started()
+  local notify = require("taskwarrior.notify")
+  if not started then
+    notify("error", "taskwarrior.nvim: failed to check active tasks",
+      vim.log.levels.ERROR)
+    return
+  end
   if #started == 0 then return end
   local config = require("taskwarrior.config")
-  local notify = require("taskwarrior.notify")
+  local stopped, failed = 0, 0
   for _, t in ipairs(started) do
-    run(string.format("task rc.bulk=0 rc.confirmation=off %s stop",
-      t.uuid:sub(1, 8)))
+    local result = command.mutate({ t.uuid:sub(1, 8), "stop" })
+    if result.ok then stopped = stopped + 1 else failed = failed + 1 end
   end
-  if config.options.granulation.notify_on_stop ~= false then
+  if stopped > 0 and config.options.granulation.notify_on_stop ~= false then
     notify("stop", string.format(
       "taskwarrior.nvim: auto-stopped %d task%s (%s)",
-      #started, #started > 1 and "s" or "", reason or "idle"))
+      stopped, stopped > 1 and "s" or "", reason or "idle"))
+  end
+  if failed > 0 then
+    notify("error", string.format(
+      "taskwarrior.nvim: failed to auto-stop %d task%s",
+      failed, failed > 1 and "s" or ""), vim.log.levels.ERROR)
   end
   -- Refresh any visible task buffers so the [>] markers drop.
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_valid(b) and vim.b[b].task_filter ~= nil then
-      pcall(function() require("taskwarrior.buffer").refresh_buf(b) end)
+  if stopped > 0 then
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_valid(b) and vim.b[b].task_filter ~= nil then
+        pcall(function() require("taskwarrior.buffer").refresh_buf(b) end)
+      end
     end
   end
 end

@@ -82,8 +82,12 @@ assets. Install it with `git config core.hooksPath .githooks`.
 - Don't hardcode field-specific semantics. Effort, priority coefficients,
   UDA interpretation must go through configurable mappers. See
   `DEFAULT_URGENCY_VALUE_MAPPERS` in `lua/taskwarrior/taskmd.lua` for the pattern.
-- When shelling out, always include `rc.bulk=0 rc.confirmation=off` in the
-  Taskwarrior invocation. Interactive prompts break headless usage.
+- Route plugin-owned Taskwarrior processes through
+  `require("taskwarrior.command")`. Use `read()` for queries, `mutate()` for
+  state changes, and `start()` for asynchronous work. Do not call
+  `vim.fn.system*` or `vim.fn.jobstart` with `task` directly: the command
+  boundary owns availability checks, non-interactive rc flags, argv safety,
+  and exit-result handling. The isolated tutor database is the sole exception.
 - Sanitize `\n` out of any string before `nvim_buf_set_lines` — vim treats
   those as a buffer-corruption error.
 - Never trust `vim.cmd("normal!")` in headless tests — it silently no-ops

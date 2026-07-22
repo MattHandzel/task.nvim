@@ -6,29 +6,16 @@
 -- setups also use `task sync`, so the wrapper works for both.
 
 local M = {}
-
-local function run_async(cmd, on_done)
-  local stdout = {}
-  local stderr = {}
-  vim.fn.jobstart(cmd, {
-    stdout_buffered = true,
-    stderr_buffered = true,
-    on_stdout = function(_, data) if data then vim.list_extend(stdout, data) end end,
-    on_stderr = function(_, data) if data then vim.list_extend(stderr, data) end end,
-    on_exit = function(_, code)
-      on_done(code, stdout, stderr)
-    end,
-  })
-end
+local command = require("taskwarrior.command")
 
 function M.run()
   local notify = require("taskwarrior.notify")
   notify("apply", "taskwarrior.nvim: syncing…")
-  run_async({ "task", "rc.bulk=0", "rc.confirmation=off", "sync" },
-    function(code, stdout, stderr)
-      local out = table.concat(stdout, "\n")
-      local err = table.concat(stderr, "\n")
-      if code == 0 then
+  command.start({ "sync" }, { kind = "mutation" },
+    function(result)
+      local out = result.output or ""
+      local err = result.stderr or ""
+      if result.ok then
         local summary = (out .. "\n" .. err):gsub("^%s+", ""):gsub("%s+$", "")
         if summary == "" then summary = "sync complete" end
         notify("apply", "taskwarrior.nvim: " .. summary:sub(1, 200))
@@ -49,7 +36,7 @@ function M.run()
         hint = "\n(hint: authentication failed — check sync credentials)"
       end
       notify("error",
-        "taskwarrior.nvim: sync failed (exit " .. code .. ")\n"
+        "taskwarrior.nvim: sync failed (exit " .. result.code .. ")\n"
           .. (err ~= "" and err or out) .. hint,
         vim.log.levels.ERROR)
       vim.ui.select({ "retry", "cancel" }, { prompt = "taskwarrior.nvim:" },
