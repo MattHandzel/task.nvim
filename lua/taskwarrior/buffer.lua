@@ -76,6 +76,10 @@ local function render(filter, sort, group)
   if filter and filter ~= "" then
     for w in filter:gmatch("%S+") do table.insert(filter_args, w) end
   end
+  -- Honor the active Taskwarrior context (TW 3.x doesn't apply it to
+  -- `export`). The tokens land in the rendered header, so the save path
+  -- re-exports with the same effective filter — no false deletes.
+  vim.list_extend(filter_args, require("taskwarrior.context").filter_tokens(filter))
 
   local tm = require("taskwarrior.taskmd")
   local ok, result = pcall(tm.render, {
@@ -107,6 +111,8 @@ local function apply_custom_sort(bufnr)
   -- Export tasks to get full data for the custom function
   local filter = vim.b[bufnr].task_filter or ""
   local export_filter = filter ~= "" and filter or "status:pending"
+  local ctx = table.concat(require("taskwarrior.context").filter_tokens(filter), " ")
+  if ctx ~= "" then export_filter = export_filter .. " " .. ctx end
   local tasks = require("taskwarrior.taskmd").shell_export(export_filter)
   if not tasks then return end
 
@@ -352,6 +358,8 @@ local function apply_virtual_text(bufnr)
   apply_empty_state(bufnr)
   local filter = vim.b[bufnr].task_filter or ""
   local export_filter = filter ~= "" and filter or "status:pending"
+  local ctx = table.concat(require("taskwarrior.context").filter_tokens(filter), " ")
+  if ctx ~= "" then export_filter = export_filter .. " " .. ctx end
   local tasks = require("taskwarrior.taskmd").shell_export(export_filter)
   if not tasks then return end
 

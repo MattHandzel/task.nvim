@@ -283,6 +283,24 @@ function M.setup(main, complete_filter)
     main.sync()
   end, { nargs = 0, desc = "Run `task sync` with progress and error handling" })
 
+  -- Taskwarrior contexts (work, home, …). No args shows the active context
+  -- and the available ones; a name sets it; "none" clears it.
+  register("Context", function(o)
+    main.context(o.args)
+  end, {
+    nargs = "?",
+    desc = "Show or set the Taskwarrior context (name or 'none')",
+    complete = function(arg_lead)
+      local names = require("taskwarrior.context").list()
+      table.insert(names, "none")
+      local out = {}
+      for _, n in ipairs(names) do
+        if n:sub(1, #arg_lead) == arg_lead then table.insert(out, n) end
+      end
+      return out
+    end,
+  })
+
   register("Float", function(o)
     require("taskwarrior.buffer").open_float(o.args)
   end, {

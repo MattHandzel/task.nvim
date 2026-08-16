@@ -163,6 +163,7 @@ These are bundled but require their own host plugins.
 | `:TwStart` / `:TwStop`                                         | Start / stop active timer on task under cursor                                                                |
 | `:TwSave <name>` / `:TwLoad [name]`                            | Save / restore the current filter+sort+group as a named view                                                  |
 | `:TwReview`                                                    | Guided urgency walk through pending tasks                                                                     |
+| `:TwContext [name\|none]`                                      | Show or set the Taskwarrior context (task buffers honor its read filter)                                      |
 | `:TwDelegate [copy\|copy-command]`                             | Delegate task(s) to Claude in a popup form                                                                    |
 | `:TwDiffPreview [on\|off\|toggle]`                             | Toggle live virt-text diff preview                                                                            |
 | `:TwBurndown`                                                  | Pending-task burndown chart                                                                                   |
