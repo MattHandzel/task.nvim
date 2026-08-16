@@ -54,6 +54,18 @@ M.defaults = {
 	-- <Esc>, ask before discarding instead of closing silently. Set to false
 	-- to restore the pre-1.4 always-close behavior.
 	capture_confirm_close = true,
+	-- Columns for the :TwTable view (vit-style). Each entry is a field name,
+	-- or a table { field, label, width, align, format }. `width` omitted on
+	-- exactly one column makes it absorb the leftover width (usually
+	-- description). `format = function(value, task) -> string` renders the
+	-- cell yourself. Unknown fields fall through to the exported task, so
+	-- UDA columns need no extra wiring:
+	--   table_columns = {
+	--     "id", { field = "utility", label = "Util", width = 5, align = "right" },
+	--     { field = "description" }, "tags",
+	--   }
+	-- nil = the built-in default columns (see table_view.DEFAULT_COLUMNS).
+	table_columns = nil,
 	group_separator = true, -- show separator lines between groups
 	animation = true, -- enable open/transition animations
 	clamp_cursor = true, -- clamp cursor before UUID comment (prevents invisible cursor movement)

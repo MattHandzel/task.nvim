@@ -201,6 +201,14 @@ function M.setup(main, complete_filter)
     views.tags()
   end, { nargs = 0, desc = "Show tag distribution" })
 
+  register("Table", function(o)
+    require("taskwarrior.table_view").open(o.args)
+  end, {
+    nargs = "*",
+    desc = "Show tasks as a configurable column table",
+    complete = function(arg_lead) return complete_filter(arg_lead) end,
+  })
+
   -- Structured feedback buffer. Default config: GitHub-issue + clipboard
   -- always available; HTTP "Send" only when feedback_endpoint is set.
   --   :<prefix>Feedback              open the empty form

@@ -182,6 +182,7 @@ function M.inbox()           require("taskwarrior.inbox").run() end
 function M.export(path)      require("taskwarrior.export").write(path) end
 function M.sync()            require("taskwarrior.sync").run() end
 function M.context(name)     require("taskwarrior.context").set(name) end
+function M.table_view(f)     require("taskwarrior.table_view").open(f) end
 
 -- Omnifunc bridge — capture buffer sets omnifunc to a v:lua expression that
 -- needs this method on the top-level require("taskwarrior") module.

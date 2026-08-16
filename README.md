@@ -171,6 +171,7 @@ These are bundled but require their own host plugins.
 | `:TwSummary`                                                   | Per-project stats                                                                                             |
 | `:TwCalendar`                                                  | Tasks grouped by due date                                                                                     |
 | `:TwTags`                                                      | Tag-frequency view                                                                                            |
+| `:TwTable [filter]`                                            | Vit-style column table; columns configurable via `table_columns`. `<CR>` opens that task for editing          |
 | `:TwProjectAdd [name]` / `:TwProjectRemove` / `:TwProjectList` | Auto-project mapping                                                                                          |
 | `:TwTutor [reset]`                                             | Open the interactive tutorial; `reset` ends an active session and cleans up orphan temp dirs                  |
 | `:TwFeedback [last-error]`                                     | Open the structured bug-report form; `last-error` pre-fills with the most recent ERROR captured by the plugin |
@@ -234,6 +235,15 @@ require("taskwarrior").setup({
   capture_height = 3,          -- quick-capture height in lines; line 1 is the
                                -- task, lines below it become annotations
   capture_annotations = true,  -- false = ignore everything below line 1
+  table_columns = nil,         -- :TwTable columns; nil = built-in defaults.
+                               -- Entries are field names or tables:
+                               -- { field, label, width, align, format }.
+                               -- Omit width on one column to let it absorb
+                               -- the leftover space. Unknown fields fall
+                               -- through to the task, so UDAs just work:
+                               --   { "id", { field = "utility", width = 5,
+                               --             align = "right" },
+                               --     "description", "tags" }
   field_colors = {},           -- per-field highlight override, e.g.
                                -- { utility = "DiagnosticInfo" }. Fields not
                                -- listed still get the neutral TaskField group
