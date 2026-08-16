@@ -888,10 +888,16 @@ describe("e2e :TaskSync without a server", function()
     stub_select("cancel")
     capture_notify()
     require("taskwarrior.sync").run()
-    vim.wait(3000, function()
+    -- Wait for a TERMINAL state, not the "syncing" progress message. sync is
+    -- async (jobstart), so returning as soon as progress appears restored
+    -- vim.notify before the real failure landed — the ERROR then escaped to
+    -- stderr, which makes headless Neovim exit non-zero and fails the whole
+    -- e2e run for a message this test exists to assert.
+    vim.wait(5000, function()
       for _, e in ipairs(_notify_log) do
-        if e.msg:match("sync failed") or e.msg:match("sync complete")
-           or e.msg:match("syncing") then return true end
+        if e.msg:match("sync failed") or e.msg:match("sync complete") then
+          return true
+        end
       end
       return false
     end, 50)
@@ -1829,12 +1835,23 @@ describe("e2e taskwarrior.icons", function()
     require("taskwarrior.config").options.icons = nil
   end)
 
-  it("icons=true (default) → NF glyph regardless of have_nerd_font", function()
-    -- Default semantics: `true` is an explicit opt-in to nerd-font, not a
-    -- request for detection. Avoids the common "I have NF in my terminal
-    -- but never set vim.g.have_nerd_font" gotcha.
+  -- `true` means AUTO-DETECT, not "force nerd-font". Shipping U+F* glyphs to
+  -- a terminal without a nerd font renders tofu, so the default has to be
+  -- safe; `"force-nf"` is the opt-in for users whose detection is broken.
+  -- This test previously asserted the opposite, contradicting both the
+  -- documented contract in config.lua and the passing unit test in
+  -- icons_spec.lua ("returns nil when icons = true (auto) and no nerd font").
+  -- It predated the force-nf escape hatch.
+  it("icons=true (default) → ASCII when no nerd font is detected", function()
     vim.g.have_nerd_font = nil
     require("taskwarrior.config").options.icons = true
+    assert.equals("H", icons.get("priority_h"))
+    require("taskwarrior.config").options.icons = nil
+  end)
+
+  it("icons='force-nf' → NF glyph regardless of have_nerd_font", function()
+    vim.g.have_nerd_font = nil
+    require("taskwarrior.config").options.icons = "force-nf"
     assert.equals("󰜷", icons.get("priority_h"))
     require("taskwarrior.config").options.icons = nil
   end)

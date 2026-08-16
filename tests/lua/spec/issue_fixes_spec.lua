@@ -262,7 +262,14 @@ describe("lint — completion= v:lua references resolve", function()
           ("%s references v:lua taskwarrior.%s which is not a function"):format(path, name))
       end
     end
-    assert.is_true(checked >= 4, "expected to find completion specs, found " .. checked)
+    -- Floor guards against the scan silently matching nothing (pattern rot
+    -- would turn this test into a no-op that always passes). It is the
+    -- current number of string-based completion specs, so converting one to
+    -- a picker means lowering it deliberately — which is the review signal
+    -- we want. Currently: _capture_omnifunc, _complete_filter,
+    -- _complete_modify. (Sort and group used to be here; they are pickers
+    -- now, which needs no v:lua indirection at all.)
+    assert.is_true(checked >= 3, "expected to find completion specs, found " .. checked)
   end)
 end)
 

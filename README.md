@@ -163,6 +163,7 @@ These are bundled but require their own host plugins.
 | `:TwStart` / `:TwStop`                                         | Start / stop active timer on task under cursor                                                                |
 | `:TwSave <name>` / `:TwLoad [name]`                            | Save / restore the current filter+sort+group as a named view                                                  |
 | `:TwReview`                                                    | Guided urgency walk through pending tasks                                                                     |
+| `:TwContext [name\|show\|define\|delete]`                      | Taskwarrior context: bare clears it, `<name>` activates, `define`/`delete` manage them                        |
 | `:TwDelegate [copy\|copy-command]`                             | Delegate task(s) to Claude in a popup form                                                                    |
 | `:TwDiffPreview [on\|off\|toggle]`                             | Toggle live virt-text diff preview                                                                            |
 | `:TwBurndown`                                                  | Pending-task burndown chart                                                                                   |
@@ -170,6 +171,7 @@ These are bundled but require their own host plugins.
 | `:TwSummary`                                                   | Per-project stats                                                                                             |
 | `:TwCalendar`                                                  | Tasks grouped by due date                                                                                     |
 | `:TwTags`                                                      | Tag-frequency view                                                                                            |
+| `:TwTable [filter]`                                            | Vit-style column table; columns configurable via `table_columns`. `<CR>` opens that task for editing          |
 | `:TwProjectAdd [name]` / `:TwProjectRemove` / `:TwProjectList` | Auto-project mapping                                                                                          |
 | `:TwTutor [reset]`                                             | Open the interactive tutorial; `reset` ends an active session and cleans up orphan temp dirs                  |
 | `:TwFeedback [last-error]`                                     | Open the structured bug-report form; `last-error` pre-fills with the most recent ERROR captured by the plugin |
@@ -188,9 +190,12 @@ These are bundled but require their own host plugins.
 | `<leader>ta`  | Quick-capture (global, works from any buffer) |
 | `<leader>tt`  | Open task buffer (global)                     |
 | `<leader>tf`  | Change filter (in task buffer)                |
-| `<leader>ts`  | Change sort (in task buffer)                  |
-| `<leader>tg`  | Change group (in task buffer)                 |
+| `<leader>ts`  | Pick sort order (in task buffer)              |
+| `<leader>tg`  | Pick grouping (in task buffer)                |
 | `<leader>tpa` | Register cwd as a project                     |
+| `<leader>tc`  | Pick the Taskwarrior context (global)         |
+| `<leader>tv`  | Pick a saved view (global)                    |
+| `<leader>tr`  | Pick a named report (global)                  |
 
 ## Metadata syntax
 
@@ -211,7 +216,10 @@ Tasks use Taskwarrior-native syntax after the description:
 ```lua
 require("taskwarrior").setup({
   on_delete = "done",          -- "done" or "delete" when lines are removed
-  confirm = true,              -- show confirmation dialog before applying
+  confirm = true,              -- show confirmation dialog before applying.
+                               -- false = apply immediately on :w; the summary
+                               -- notification then points at :TwUndo, which
+                               -- reverts everything the save just did
   sort = "urgency-",           -- default sort (field+ for asc, field- for desc)
   group = nil,                 -- default group field (nil to disable)
   wrap = true,                 -- line-wrap task buffers (false = one line per task)
@@ -227,7 +235,28 @@ require("taskwarrior").setup({
   icons = true,                -- nerd font checkbox/header icons
   border_style = "rounded",    -- "rounded" | "single" | "double" | "none"
   capture_width = nil,         -- quick-capture width (nil = auto)
-  capture_height = 3,          -- quick-capture height in lines
+  capture_height = 3,          -- quick-capture height in lines; line 1 is the
+                               -- task, lines below it become annotations
+  capture_annotations = true,  -- false = ignore everything below line 1
+  capture_annotation_key = nil,-- insert-mode key(s) opening an annotation
+                               -- line. Default binds <M-CR> and <C-CR>.
+                               -- <C-CR> only reaches Neovim from terminals
+                               -- speaking CSI-u (in tmux you also need
+                               -- `set -g extended-keys on`); <M-CR> works
+                               -- almost everywhere, which is why both are
+                               -- bound by default
+  table_columns = nil,         -- :TwTable columns; nil = built-in defaults.
+                               -- Entries are field names or tables:
+                               -- { field, label, width, align, format }.
+                               -- Omit width on one column to let it absorb
+                               -- the leftover space. Unknown fields fall
+                               -- through to the task, so UDAs just work:
+                               --   { "id", { field = "utility", width = 5,
+                               --             align = "right" },
+                               --     "description", "tags" }
+  field_colors = {},           -- per-field highlight override, e.g.
+                               -- { utility = "DiagnosticInfo" }. Fields not
+                               -- listed still get the neutral TaskField group
   auto_backup = true,          -- copy ~/.task to stdpath("data")/taskwarrior.nvim/backups/ before apply
   auto_backup_keep = 10,       -- number of recent backups to retain
   delegate = {
@@ -281,6 +310,17 @@ Run `:checkhealth taskwarrior` to verify your setup (Neovim version, Taskwarrior
 `:w` issues real `task modify` / `task done` / `task add` / `task delete` commands against your Taskwarrior database. There is no staging.
 
 By default (`auto_backup = true`), the plugin copies your Taskwarrior data directory to `stdpath("data")/taskwarrior.nvim/backups/<timestamp>/` immediately before any apply. The ten newest backups are kept; older ones are pruned. Disable with `auto_backup = false` in `setup()`.
+
+### One-time tag repair
+
+Taskwarrior 3 parses the hyphen in a bare `+foo-bar` token as a subtraction operator. Tasks added before this was fixed had the literal `+foo-bar` text filed into their **description** with no tag ever created — so they stay invisible to `+foo-bar` even after upgrading. If that happened to you, run the repair once:
+
+```vim
+:lua require("taskwarrior.repair_tags").run()              " pending tasks
+:lua require("taskwarrior.repair_tags").run("status:completed")
+```
+
+It shows every proposed change in a preview tab and asks before writing anything. A `+tag` written inside quotes is treated as a mention and left alone. There is deliberately no `:Tw*` command for this — you run it once, not daily.
 
 ## Help
 

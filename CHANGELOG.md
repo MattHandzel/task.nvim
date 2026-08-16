@@ -6,6 +6,126 @@ this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] — v1.5.0
 
+### Added
+
+- **One-time tag repair** —
+  `:lua require("taskwarrior.repair_tags").run()` repairs the damage the
+  hyphenated-tag bug left behind. Tasks added before the fix had the
+  literal `+foo-bar` text filed into their *description* with no tag
+  created, so they stay unfindable by `+foo-bar` even after the parser
+  fix. This strips those tokens out and adds the real tags. Every
+  proposed change is shown in a preview tab and confirmed before anything
+  is written; the default scope is `status:pending`, and a `+tag` written
+  inside quotes is treated as a mention and left alone. Intentionally not
+  a `:Tw*` command — it is run once, not routinely.
+- **`:TwContext [name|none]`** — set or show the Taskwarrior context
+  (work, home, …). Task buffers honor the active context's read filter
+  and refresh when it changes. Taskwarrior 3.x applies contexts to
+  reports but *not* to `export`, which is how the plugin reads
+  everything, so the render path injects the read filter itself; the
+  injected tokens land in the rendered header, keeping the save path on
+  the same effective filter. `uuid:`-targeted filters are never
+  context-narrowed. Completion lists defined contexts plus `none`.
+- **`:TwTable [filter]`** — vit-style column view: one row per task with
+  aligned columns, sorted by urgency (or `custom_urgency`). `<CR>` opens
+  the task under the cursor in an editable `:Tw` buffer, `r` refreshes,
+  `q` closes; the view itself is read-only. Columns come from the new
+  `table_columns` option — a field name or
+  `{ field, label, width, align, format }`. Omitting `width` on one
+  column lets it absorb the leftover window width; over-long cells
+  ellipsize instead of overflowing. Unrecognised field names are read
+  straight off the exported task, so UDA columns need no extra wiring.
+- **Capture annotations** — lines below the first in the quick-capture
+  window become annotations on the created task. `<M-CR>` or `<C-CR>`
+  opens an annotation line; `<CR>` still submits everything. New
+  `capture_annotations` option (default `true`) opts out;
+  `capture_height` sizes the form. The keys are configurable via
+  `capture_annotation_key` — `<C-CR>` only reaches Neovim from terminals
+  speaking the CSI-u / kitty keyboard protocol (and inside tmux only with
+  `set -g extended-keys on`), which is why the portable `<M-CR>` is bound
+  alongside it.
+- **Capture field coloring** — the quick-capture buffer now runs the task
+  buffer's highlighter, so `project:`, `priority:`, `due:`, `+tags` and
+  UDAs are colored as you type.
+- **`field_colors` option** — per-field highlight overrides keyed by
+  field name, mirroring `tag_colors`. Any `field:value` token not
+  otherwise styled now gets the new neutral `TaskField` highlight group,
+  so a UDA never renders as plain description text. Clock times
+  (`09:30`) and URL schemes are excluded from field matching.
+- The quick-capture confirmation now echoes the first ~40 characters of
+  the stored description (plus an annotation count), so you can tell at a
+  glance that the right task went through and its fields parsed.
+
+- **Pickers for every finite choice.** Anything with a small known answer
+  set is now chosen from a list instead of typed from memory: sort order
+  (`<leader>ts`), grouping (`<leader>tg`), context (`<leader>tc`, new),
+  saved views (`<leader>tv`, new) and reports (`<leader>tr`, new). The
+  active value is marked in the list, and the context/report pickers show
+  each entry's filter so you can tell them apart. Built on `vim.ui.select`,
+  so fuzzy matching comes from whatever picker you already use
+  (dressing/telescope, snacks, fzf-lua) and it degrades to Neovim's
+  built-in list otherwise. Bare `:TwSort` now opens the picker instead of
+  erroring. New `context_key` / `view_key` / `report_key` options, each
+  disablable with `false`.
+
+### Fixed
+
+- **Sorting by a field only some tasks have** (`:TwSort priority-`,
+  `due+`, `project-`) raised `attempt to compare two boolean values` and
+  failed the whole render. The comparator compared two "is this side
+  missing?" booleans with `<`, which Lua rejects. Missing values now sort
+  last in both directions.
+- **Priority sorted alphabetically rather than by importance**, so
+  `priority-` — which reads as "most important first", like `urgency-`
+  beside it — listed `L` above `H`. Priority is now ranked H > M > L.
+- `:TwLoad` with no argument silently did nothing instead of offering the
+  saved-view picker: the command passes `""`, which is truthy in Lua, so
+  it fell through to the "load view named ''" path.
+- **Hyphenated tag names** (`+ais-research-taste` and friends).
+  Taskwarrior 3's expression parser reads the hyphen in a bare `+tag`
+  token as a subtraction operator, which broke three separate paths:
+  filters failed with `Cannot subtract from a Boolean value` and rendered
+  a silently empty buffer; `task add … +foo-bar` put the tag in the
+  *description* text; and `modify +foo-bar` exited non-zero without
+  applying. Fixes:
+  - `shell_export` now routes parsed filter args through the same
+    `+t` → `tags.has:t` / `-t` → `tags.hasnt:t` rewrite `tw_export`
+    already used (virtual tags such as `+ACTIVE` pass through verbatim).
+  - Task creation and buffer saves emit a single `tags:a,b` replacement
+    instead of per-tag `+a` / `-b` deltas.
+  - New `taskmd.tw_change_tag(uuid, tag, remove)` merges a single-tag
+    delta into the full set and replaces; used by the `gm` tag picker and
+    `:TwInbox`.
+- **Partial tag removal on save** — removing one tag from a task line in
+  the markdown buffer and saving now actually applies the removal. The
+  old per-tag `+t` delta args never did.
+- `<Esc>` in the quick-capture window only checked line 1 for unsubmitted
+  text, so annotation lines could be discarded without a prompt; the
+  cursor restore after "don't discard" also always jumped back to line 1.
+- `task context none` exits non-zero when no context is set; clearing an
+  already-clear context is now treated as the no-op it is instead of
+  surfacing an error.
+
+- `:TwTable` sized its columns against `vim.o.columns`, which overcounts
+  by the width of the number/sign gutter — the widest rows wrapped past
+  the right edge. Widths now come from the window's actual text area
+  (`width - textoff`), and the view re-renders on window resize.
+- The quick-capture window bound insert-mode `<C-o>` for annotation lines,
+  shadowing Vim's built-in one-shot-normal-command. Removed; see
+  `capture_annotation_key`.
+
+### Changed
+
+- Task buffers now start at the top: the taskmd header comment is hidden
+  outright via extmark `conceal_lines` (Neovim 0.11+) instead of leaving a
+  blank concealed row, the spacer line beneath it is gone, and the cursor
+  opens on the first task rather than the header. On Neovim < 0.11 the
+  header still renders as one blank row (`conceal_lines` does not exist
+  there), but the spacer and cursor changes apply.
+- With `confirm = false`, the apply summary notification now points at
+  `:TwUndo` — without the popup that notification is the only checkpoint,
+  so the revert path is named where you'll see it.
+
 ### Removed — Python backend
 
 - `bin/taskmd` (the optional Python CLI) — removed. Taskwarrior.nvim has

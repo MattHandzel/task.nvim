@@ -62,7 +62,19 @@ function M.set_buf_lines(bufnr, text)
   if lines[#lines] == "" then
     table.remove(lines)
   end
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+  -- Render is not a user edit, so it must not be undoable. Otherwise `u` in a
+  -- freshly opened buffer reverts the population itself and leaves the empty
+  -- buffer behind — which the save path reads as "every task was deleted",
+  -- and duly offers to delete them all. Setting undolevels to -1 across the
+  -- change is the documented way to make it non-undoable (:h undolevels);
+  -- the user's own edits afterwards still undo normally.
+  vim.api.nvim_buf_call(bufnr, function()
+    local saved = vim.api.nvim_get_option_value("undolevels", { buf = bufnr })
+    vim.api.nvim_set_option_value("undolevels", -1, { buf = bufnr })
+    local ok, err = pcall(vim.api.nvim_buf_set_lines, bufnr, 0, -1, false, lines)
+    vim.api.nvim_set_option_value("undolevels", saved, { buf = bufnr })
+    if not ok then error(err) end
+  end)
 end
 
 -- ---------------------------------------------------------------------------
@@ -76,6 +88,10 @@ local function render(filter, sort, group)
   if filter and filter ~= "" then
     for w in filter:gmatch("%S+") do table.insert(filter_args, w) end
   end
+  -- Honor the active Taskwarrior context (TW 3.x doesn't apply it to
+  -- `export`). The tokens land in the rendered header, so the save path
+  -- re-exports with the same effective filter — no false deletes.
+  vim.list_extend(filter_args, require("taskwarrior.context").filter_tokens(filter))
 
   local tm = require("taskwarrior.taskmd")
   local ok, result = pcall(tm.render, {
@@ -107,6 +123,8 @@ local function apply_custom_sort(bufnr)
   -- Export tasks to get full data for the custom function
   local filter = vim.b[bufnr].task_filter or ""
   local export_filter = filter ~= "" and filter or "status:pending"
+  local ctx = table.concat(require("taskwarrior.context").filter_tokens(filter), " ")
+  if ctx ~= "" then export_filter = export_filter .. " " .. ctx end
   local tasks = require("taskwarrior.taskmd").shell_export(export_filter)
   if not tasks then return end
 
@@ -188,6 +206,22 @@ end
 -- ---------------------------------------------------------------------------
 
 local hl_ns = vim.api.nvim_create_namespace("taskwarrior_hl")
+
+-- Whether this Neovim understands extmark `conceal_lines` (0.11+), which
+-- hides a line's screen row outright rather than blanking it. Probed once
+-- against a throwaway buffer — the option is silently ignored on older
+-- versions in some builds and errors in others, so feature-test rather
+-- than version-compare.
+local HAS_CONCEAL_LINES = (function()
+  local probe_buf = vim.api.nvim_create_buf(false, true)
+  local probe_ns = vim.api.nvim_create_namespace("taskwarrior_conceal_probe")
+  vim.api.nvim_buf_set_lines(probe_buf, 0, -1, false, { "probe" })
+  local ok = pcall(vim.api.nvim_buf_set_extmark, probe_buf, probe_ns, 0, 0, {
+    conceal_lines = "",
+  })
+  pcall(vim.api.nvim_buf_delete, probe_buf, { force = true })
+  return ok
+end)()
 local vt_ns = vim.api.nvim_create_namespace("taskwarrior_vt")
 
 -- Paint the checkbox visuals on a single line: a conceal extmark over the
@@ -352,6 +386,8 @@ local function apply_virtual_text(bufnr)
   apply_empty_state(bufnr)
   local filter = vim.b[bufnr].task_filter or ""
   local export_filter = filter ~= "" and filter or "status:pending"
+  local ctx = table.concat(require("taskwarrior.context").filter_tokens(filter), " ")
+  if ctx ~= "" then export_filter = export_filter .. " " .. ctx end
   local tasks = require("taskwarrior.taskmd").shell_export(export_filter)
   if not tasks then return end
 
@@ -596,6 +632,10 @@ local function define_highlights()
   -- Overdue right-align pill uses an inverted-fg style so it pops against
   -- normal right-align virt-text.
   vim.api.nvim_set_hl(0, "TaskOverdueBadge",{ fg = "#1e1e2e", bg = "#f38ba8", bold = true })
+  -- Catch-all for any other `field:value` (UDAs, depends:, until:, …) so no
+  -- field renders as plain description text. Per-field overrides go through
+  -- config.field_colors.
+  vim.api.nvim_set_hl(0, "TaskField",       { link = "TaskSubtle" })
 end
 
 -- Highlight patterns: { lua pattern, highlight group, is_prefix_match }
@@ -620,16 +660,24 @@ local function is_overdue(date_str)
 end
 
 -- Apply highlights to a single line
-local function highlight_line(bufnr, line_nr, line)
+local function highlight_line(bufnr, line_nr, line, has_tasks)
   -- Header comment line — concealed entirely. Users don't need to see the
   -- <!-- taskmd filter: ... | sort: ... | rendered_at: ... --> metadata, only
   -- the tasks themselves. Filter/sort/group are shown via statusline if the
   -- user configures it, and :TaskHelp lists the active settings.
   if line:match("^<!%-%-.*taskmd") then
-    vim.api.nvim_buf_set_extmark(bufnr, hl_ns, line_nr, 0, {
-      end_col = #line, hl_group = "TaskHeader",
-      conceal = "",
-    })
+    local opts = { end_col = #line, hl_group = "TaskHeader", conceal = "" }
+    -- `conceal_lines` (Neovim 0.11+) removes the row entirely instead of
+    -- leaving a blank one, so the first task sits on the top line. Older
+    -- Neovim keeps the previous behaviour: an empty concealed row.
+    --
+    -- EXCEPT when there are no tasks: the empty-state hint ("No tasks match
+    -- filter …") is virt_lines anchored to this header, and removing the
+    -- host row removes the hint with it — leaving a completely blank
+    -- buffer, which is the exact symptom issue #5 was about. With no tasks
+    -- there is nothing to pull up to the top anyway, so keep the row.
+    if HAS_CONCEAL_LINES and has_tasks then opts.conceal_lines = "" end
+    vim.api.nvim_buf_set_extmark(bufnr, hl_ns, line_nr, 0, opts)
     return
   end
 
@@ -688,6 +736,41 @@ local function highlight_line(bufnr, line_nr, line)
     pos = e + 1
   end
 
+  local config = require("taskwarrior.config")
+
+  -- Every remaining `field:value` token — UDAs (utility:20), depends:,
+  -- until:, and any field the specific patterns below don't cover. Painted
+  -- FIRST so the specific patterns overwrite it where they apply, and so
+  -- an unknown field never reads as plain description text. Per-field
+  -- overrides come from config.field_colors, keyed by field name.
+  local field_colors = config.options.field_colors or {}
+  pos = 1
+  while true do
+    local s, e, name = line:find("([%w_]+):%S+", pos)
+    if not s then break end
+    local prev = s > 1 and line:sub(s - 1, s - 1) or ""
+    local value = line:sub(s + #name + 1, e)
+    -- Require a token boundary, reject numeric names ("12:30" is a clock
+    -- time) and `//` values (URL schemes) — neither is a Taskwarrior field.
+    if (prev == "" or prev:match("%s"))
+      and not name:match("^%d")
+      and not value:match("^//") then
+      local hl_group = "TaskField"
+      local override = field_colors[name]
+      if type(override) == "string" then
+        hl_group = override
+      elseif type(override) == "table" then
+        local gname = "TaskField_" .. name:gsub("[^%w]", "_")
+        pcall(vim.api.nvim_set_hl, 0, gname, override)
+        hl_group = gname
+      end
+      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, line_nr, s - 1, {
+        end_col = e, hl_group = hl_group,
+      })
+    end
+    pos = e + 1
+  end
+
   -- All other patterns
   for _, pat in ipairs(HL_PATTERNS) do
     pos = 1
@@ -704,7 +787,6 @@ local function highlight_line(bufnr, line_nr, line)
   -- Tags: +word, but only when the `+` is at start-of-line or preceded by a
   -- non-word character. Prevents "housing+food" from highlighting "+food".
   -- Honors config.tag_colors for per-tag overrides (e.g. +urgent → ErrorMsg).
-  local config = require("taskwarrior.config")
   local tag_colors = config.options.tag_colors or {}
   pos = 1
   while true do
@@ -736,8 +818,14 @@ end
 local function update_highlights(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, hl_ns, 0, -1)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  -- Whether the buffer holds any task at all decides if the header row can
+  -- be removed outright — see the header branch in highlight_line.
+  local has_tasks = false
+  for _, line in ipairs(lines) do
+    if uuid_from_line(line) or line:match("^%- %[") then has_tasks = true; break end
+  end
   for i, line in ipairs(lines) do
-    highlight_line(bufnr, i - 1, line)
+    highlight_line(bufnr, i - 1, line, has_tasks)
   end
 end
 
@@ -762,6 +850,24 @@ end
 -- ---------------------------------------------------------------------------
 -- refresh_buf: re-render and re-highlight a task buffer
 -- ---------------------------------------------------------------------------
+
+-- Park the cursor on the first task line. The header row above it is
+-- concealed away entirely on Neovim 0.11+, so leaving the cursor on line 1
+-- would strand it on a row the user cannot see.
+function M.cursor_to_first_task(win, bufnr)
+  win = win or 0
+  bufnr = bufnr or vim.api.nvim_win_get_buf(win)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  for i, line in ipairs(lines) do
+    if uuid_from_line(line) or line:match("^%- %[") then
+      pcall(vim.api.nvim_win_set_cursor, win, { i, 6 })
+      return i
+    end
+  end
+  -- No tasks (empty filter): sit on the first line that isn't the header.
+  pcall(vim.api.nvim_win_set_cursor, win, { math.min(2, #lines), 0 })
+  return nil
+end
 
 function M.refresh_buf(bufnr)
   if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
@@ -979,33 +1085,31 @@ function M.setup_buf_keymaps(bufnr)
     end, { buffer = bufnr, noremap = true, silent = true, desc = "taskwarrior.nvim: Change filter" })
   end
 
-  -- Buffer-local sort key
+  -- Buffer-local sort key. Finite set → picker, not a free-text prompt.
   if config2.options.sort_key then
     vim.keymap.set("n", config2.options.sort_key, function()
-      local ok, input = pcall(vim.fn.input, {
-        prompt = "Sort: ",
-        default = vim.b[bufnr].task_sort or "urgency-",
-        completion = "customlist,v:lua.require'taskwarrior'._complete_sort",
-      })
-      if not ok or input == nil then return end
-      vim.b[bufnr].task_sort = input
-      M.refresh_buf(bufnr)
-      vim.notify("taskwarrior.nvim: sort → " .. input)
+      require("taskwarrior.pick").select(
+        require("taskwarrior.choices").SORTS,
+        { prompt = "Sort by:", current = vim.b[bufnr].task_sort or "urgency-" },
+        function(value)
+          vim.b[bufnr].task_sort = value
+          M.refresh_buf(bufnr)
+          vim.notify("taskwarrior.nvim: sort → " .. value)
+        end)
     end, { buffer = bufnr, noremap = true, silent = true, desc = "taskwarrior.nvim: Change sort" })
   end
 
-  -- Buffer-local group key
+  -- Buffer-local group key.
   if config2.options.group_key then
     vim.keymap.set("n", config2.options.group_key, function()
-      local ok, input = pcall(vim.fn.input, {
-        prompt = "Group by (empty=none): ",
-        default = vim.b[bufnr].task_group or "",
-        completion = "customlist,v:lua.require'taskwarrior'._complete_group",
-      })
-      if not ok or input == nil then return end
-      vim.b[bufnr].task_group = (input ~= "" and input ~= "none") and input or nil
-      M.refresh_buf(bufnr)
-      vim.notify("taskwarrior.nvim: group → " .. (input ~= "" and input or "(none)"))
+      require("taskwarrior.pick").select(
+        require("taskwarrior.choices").GROUPS,
+        { prompt = "Group by:", current = vim.b[bufnr].task_group or "none" },
+        function(value)
+          vim.b[bufnr].task_group = (value ~= "none") and value or nil
+          M.refresh_buf(bufnr)
+          vim.notify("taskwarrior.nvim: group → " .. value)
+        end)
     end, { buffer = bufnr, noremap = true, silent = true, desc = "taskwarrior.nvim: Change grouping" })
   end
 
@@ -1114,6 +1218,37 @@ function M.setup_buf_autocmds(bufnr, on_write_fn)
       -- shift horizontally, making it look like j "doesn't work".
       -- Overridable via setup{ wrap = false } (issue #3).
       vim.wo[0].wrap = require("taskwarrior.config").options.wrap ~= false
+    end,
+  })
+
+  -- Keep the cursor off the header line. The header row is concealed away
+  -- entirely (see highlight_line), so the first task is drawn on the top
+  -- screen row — which means `gg`, `:1`, or a restored cursor position puts
+  -- you on a line you cannot see while the first task LOOKS selected.
+  -- Typing there edits the header and earns a "header is read-only"
+  -- warning that appears to come from editing the first task.
+  --
+  -- Visual mode is exempt: moving the cursor would silently reshape the
+  -- user's selection. The read-only guard below still covers that case.
+  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+    buffer = bufnr,
+    group = group,
+    callback = function()
+      if not vim.api.nvim_buf_is_valid(bufnr) then return true end
+      if vim.fn.mode():match("[vV\22]") then return end
+      local pos = vim.api.nvim_win_get_cursor(0)
+      if pos[1] ~= 1 then return end
+      local first = vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or ""
+      if not first:match("^<!%-%-.*taskmd") then return end
+      -- Only bounce if there is somewhere to bounce to: with no tasks the
+      -- header row stays visible and is the only line in the buffer.
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      for i = 2, #lines do
+        if uuid_from_line(lines[i]) or lines[i]:match("^%- %[") then
+          pcall(vim.api.nvim_win_set_cursor, 0, { i, pos[2] })
+          return
+        end
+      end
     end,
   })
 
@@ -1293,6 +1428,7 @@ function M.open_task_buf(filter_str, on_write_fn, detect_project_fn)
   vim.wo[0].conceallevel = 3
   vim.wo[0].concealcursor = "nvic"
   vim.wo[0].wrap = config.options.wrap ~= false
+  M.cursor_to_first_task(0, bufnr)
 
   -- Set name safely — wipe stale buffer with same name if needed
   local buf_name = "Tasks: " .. filter_str
@@ -1362,6 +1498,7 @@ function M.open_float(filter_str)
     pcall(vim.api.nvim_win_close, win, true)
   end, { buffer = scratch, nowait = true, silent = true })
 
+  M.cursor_to_first_task(win, scratch)
   apply_virtual_text(scratch)
 end
 

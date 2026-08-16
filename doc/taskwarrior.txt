@@ -129,7 +129,8 @@ Edit any line. `:w` to sync. That is the whole loop.
                                                              *:TwSummary*
                                                             *:TwCalendar*
                                                                 *:TwTags*
-Visualisation commands. See |taskwarrior-views|.
+                                                               *:TwTable*
+Visualisation commands. See |taskwarrior-views| and |taskwarrior-table|.
 
                                                           *:TwProjectAdd*
                                                        *:TwProjectRemove*
@@ -243,6 +244,44 @@ Visualisation commands. See |taskwarrior-views|.
 :TwSync               Run `task sync` asynchronously with progress and
                         error reporting. Offers a retry on failure.
 
+                                                             *:TwContext*
+:TwContext            Clear the active context (same as `none`).
+:TwContext {name}     Activate that context. Task buffers refresh and
+                        honor its read filter — TW 3.x does not apply
+                        contexts to `export`, so the plugin injects the
+                        filter itself. Filters targeting a specific
+                        `uuid:` are never context-narrowed.
+:TwContext show       Show the active context and list defined ones.
+:TwContext define [name] [filter]
+                      Define a context, e.g.
+                        :TwContext define work project:work
+                        :TwContext define deep +focus or priority:H
+                      Prompts for anything you leave out, then offers to
+                        activate it.
+:TwContext delete [name]
+                      Delete a context definition (prompts with a picker
+                        when the name is omitted).
+
+                                                     *taskwarrior-repair*
+One-time tag repair ~
+
+Taskwarrior 3 parses the hyphen in a bare `+foo-bar` token as a
+subtraction operator, so tasks added before this was fixed had the
+literal text filed into their DESCRIPTION and the tag was never created
+— leaving them unfindable by `+foo-bar` even after upgrading. To move
+those tokens back into real tags: >
+
+    :lua require("taskwarrior.repair_tags").run()
+    :lua require("taskwarrior.repair_tags").run("status:completed")
+<
+Every proposed change is shown in a preview tab and confirmed before
+anything is written. The default scope is `status:pending`; pass a
+filter to widen it. A `+tag` written inside quotes is treated as a
+mention (someone describing a tag) and left alone.
+
+There is deliberately no `:Tw` command for this — it is run once, not
+routinely, and would otherwise sit in the command list forever.
+
                                                                *:TwFloat*
 :TwFloat [filter]     Open the task buffer in a centered floating window
                         instead of a split. `q` to dismiss.
@@ -342,9 +381,34 @@ Buffer-local (inside a task buffer): ~
     <<                  Prepend to description (|:TwPrepend|).
     yt                  Duplicate task (|:TwDuplicate|).
     dD                  Purge task (irreversible, confirms).
-    <leader>tf          Change filter interactively.
-    <leader>ts          Change sort interactively.
-    <leader>tg          Change grouping interactively.
+    <leader>tf          Change filter (free text, <Tab> completes).
+    <leader>ts          Pick sort order.
+    <leader>tg          Pick grouping.
+
+Global (work from any buffer):
+
+    <leader>tt          Open the task buffer.
+    <leader>ta          Quick-capture a task.
+    <leader>tc          Pick the Taskwarrior context.
+    <leader>tv          Pick a saved view.
+    <leader>tr          Pick a named report.
+    <leader>tpa         Register cwd as a project.
+    <leader>tF          Report a bug (|:TwFeedback|).
+
+                                                      *taskwarrior-pickers*
+Anything with a small, known set of answers is chosen from a list rather
+than typed: sort order, grouping, context, saved views and reports. The
+active value is marked with `●`, and the context and report pickers show
+each entry's filter alongside its name.
+
+These use |vim.ui.select|, so they render through whichever picker you
+have configured — dressing.nvim/telescope, snacks, fzf-lua — and inherit
+its fuzzy matching. With no such plugin installed you get Neovim's
+built-in numbered list.
+
+The filter prompt is deliberately NOT a picker: a Taskwarrior filter is
+open-ended, so it stays free text with <Tab> completion over your real
+projects, tags and fields.
 
 ==============================================================================
 7. SYNTAX                                                    *taskwarrior-syntax*
@@ -371,7 +435,8 @@ Full schema with defaults: >
 
     require("taskwarrior").setup({
       on_delete         = "done",     -- or "delete"
-      confirm           = true,
+      confirm           = true,       -- false = no popup: :w applies at once,
+                                      -- notifies a summary, :TwUndo reverts
       sort              = "urgency-",
       group             = nil,
       wrap              = true,       -- false = don't line-wrap task buffers
@@ -382,12 +447,17 @@ Full schema with defaults: >
       sort_key          = "<leader>ts",
       group_key         = "<leader>tg",
       project_add_key   = "<leader>tpa",
+      context_key       = "<leader>tc",  -- pick a context
+      view_key          = "<leader>tv",  -- pick a saved view
+      report_key        = "<leader>tr",  -- pick a named report
       filters           = {},
       projects          = {},
       icons             = true,
       border_style      = "rounded",
       capture_width     = nil,
-      capture_height    = 3,
+      capture_height    = 3,          -- line 1 = task, lines below it become
+                                      -- annotations (<C-CR> opens one)
+      capture_annotations = true,     -- false = ignore lines below line 1
       capture_confirm_close = true,  -- prompt before discarding text on <Esc>
       group_separator   = true,
       animation         = true,
@@ -407,6 +477,8 @@ Full schema with defaults: >
       },
       -- Per-tag highlight overrides (see |taskwarrior-tag-colors|).
       tag_colors = {},                -- e.g. { ["+urgent"] = "ErrorMsg" }
+      field_colors = {},              -- e.g. { utility = "DiagnosticInfo" };
+                                      -- unlisted fields get `TaskField`
       -- Urgency breakpoints for virtual text + views (|taskwarrior-urgency-colors|).
       urgency_colors = {
         { threshold = 8, hl = "TaskPriorityH" },
@@ -601,8 +673,33 @@ are supported.
 :TwSummary        Per-project counts + horizontal bar chart.
 :TwCalendar       Tasks grouped by due date.
 :TwTags           Tag frequency.
+:TwTable [filter] Vit-style column table of tasks.
 
 All read from `task export` — no external charting tools.
+
+                                                       *taskwarrior-table*
+:TwTable renders one row per task with aligned columns, sorted by urgency
+(or `custom_urgency` when set). `<CR>` opens the task under the cursor in
+an editable :Tw buffer, `r` refreshes, `q` closes. The view itself is
+read-only.
+
+Columns come from the `table_columns` option. Each entry is a field name,
+or a table: >
+
+    table_columns = {
+      "id",
+      { field = "utility", label = "Util", width = 5, align = "right" },
+      { field = "description" },        -- no width: absorbs leftover space
+      { field = "tags", label = "Count", width = 6,
+        format = function(value, task) return tostring(#(value or {})) end },
+    }
+<
+`width` omitted on exactly one column makes it take the remaining window
+width; cells longer than their column are ellipsized, never overflowed.
+Field names not recognised as built-ins are read straight off the exported
+task, so UDA columns need no extra wiring. `format(value, task)` renders
+the cell yourself. Leave `table_columns` nil for the built-in defaults
+(ID, urgency, priority, project, due, description, tags).
 
 ==============================================================================
 10. SAVED VIEWS                                        *taskwarrior-saved-views*

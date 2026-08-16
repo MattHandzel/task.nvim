@@ -328,6 +328,10 @@ end
 function M.shell_export(filter_str)
   local args, err = command.parse_args(filter_str)
   if not args then return nil, err end
+  -- Same normalization tw_export applies: without it, `+ais-research-taste`
+  -- is parsed by TW3 as (+ais) − (research) − (taste) and the export errors
+  -- with "Cannot subtract from a Boolean value".
+  args = normalize_tag_filters(normalize_duration_minutes(args))
   table.insert(args, 1, "rc.json.array=on")
   args[#args + 1] = "export"
   local result = command.read(args, { ok_codes = { 0, 1 } })
@@ -361,13 +365,17 @@ local function fields_to_args(fields)
   local args = {}
   for key, val in pairs(fields) do
     if key == "tags" then
+      -- `tags:a,b` replacement instead of per-tag `+a +b`: TW3 mis-parses
+      -- `+foo-bar` (hyphen becomes a subtraction operator — on add the tag
+      -- silently lands in the description, on modify the command errors),
+      -- and replacement also applies partial removals, which `+t` deltas
+      -- never did. compute_diff always carries the FULL new tag set here.
       if type(val) == "table" then
-        for _, t in ipairs(val) do args[#args + 1] = "+" .. t end
+        args[#args + 1] = "tags:" .. table.concat(val, ",")
       end
     elseif key == "_removed_tags" then
-      if type(val) == "table" then
-        for _, t in ipairs(val) do args[#args + 1] = "-" .. t end
-      end
+      -- Obsolete: full-set `tags:` replacement above already covers removal.
+      -- Kept as an ignored key so older callers don't emit broken `-t` args.
     elseif key == "status" then
       -- skip
     elseif val == "" then
@@ -417,6 +425,28 @@ function M.tw_modify(uuid, fields)
   vim.list_extend(cmd_args, parts)
   local result = command.mutate(cmd_args)
   return result.ok, result.output, result.code
+end
+
+-- Append (or remove) a single tag safely. TW3 cannot parse `modify +foo-bar`
+-- (hyphen becomes subtraction; the command errors or silently no-ops), so
+-- read the task's current tag set, merge the delta, and replace via `tags:`.
+-- Returns ok, output, code — same contract as tw_modify.
+function M.tw_change_tag(uuid, tag, remove)
+  local current = M.shell_export("uuid:" .. uuid)
+  if not current or not current[1] then
+    return false, "could not read task " .. tostring(uuid) .. " to change its tags", 1
+  end
+  local tags, found = {}, false
+  for _, t in ipairs(current[1].tags or {}) do
+    if t == tag then found = true end
+    if not (remove and t == tag) then tags[#tags + 1] = t end
+  end
+  if remove and not found then return true, "", 0 end
+  if not remove then
+    if found then return true, "", 0 end
+    tags[#tags + 1] = tag
+  end
+  return M.tw_modify(uuid, { tags = tags })
 end
 
 local function simple_tw(verb)
@@ -1136,11 +1166,26 @@ function M.render(args)
 
   local descending = sort_spec:sub(-1) == "-"
   local sort_field = sort_spec:gsub("[+-]$", "")
+  -- Priority is ordinal, not alphabetical: comparing the letters put "L"
+  -- above "H" descending, so `priority-` listed the LEAST important tasks
+  -- first — the opposite of what the spec means (and of `urgency-` beside
+  -- it). Rank them so the numeric branch below does the right thing.
+  local PRIORITY_RANK = { H = 3, M = 2, L = 1 }
+  local function sort_value(task)
+    local v = task[sort_field]
+    if sort_field == "priority" and type(v) == "string" then
+      return PRIORITY_RANK[v:upper()]
+    end
+    return v
+  end
   table.sort(tasks, function(a, b)
-    local va, vb = a[sort_field], b[sort_field]
+    local va, vb = sort_value(a), sort_value(b)
     local ma, mb = va == nil, vb == nil
     if ma and mb then return false end
-    if ma ~= mb then return ma < mb end  -- missing sorts last (ma=true → larger)
+    -- Exactly one side is missing → it sorts last, regardless of direction.
+    -- (`ma < mb` was a boolean comparison, which Lua rejects outright: any
+    -- sort on a field some tasks lack — priority, due, project — errored.)
+    if ma ~= mb then return mb end
     if type(va) == "number" and type(vb) == "number" then
       if descending then return va > vb else return va < vb end
     end
@@ -1154,7 +1199,10 @@ function M.render(args)
     "<!-- taskmd filter: %s | sort: %s%s%s | rendered_at: %s -->",
     filter_str, sort_spec, group_part, udas_part, now_iso())
 
-  local lines = { header, "" }
+  -- No blank line after the header: the header itself is concealed in the
+  -- task buffer, so a spacer under it just pushes the first task down two
+  -- rows for no visual benefit. Group headers below bring their own spacing.
+  local lines = { header }
   if group_field then
     local groups = {}
     local order = {}

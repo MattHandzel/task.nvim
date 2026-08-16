@@ -70,19 +70,24 @@ function M.setup(main, complete_filter)
     main.undo()
   end, { nargs = 0, desc = "Undo last save" })
 
+  -- No argument opens the picker (previously this was an error), so both
+  -- `:TwSort due+` and a bare `:TwSort` are usable.
   register("Sort", function(cmd_opts)
+    if cmd_opts.args == "" then
+      local bufnr = vim.api.nvim_get_current_buf()
+      require("taskwarrior.pick").select(
+        require("taskwarrior.choices").SORTS,
+        { prompt = "Sort by:", current = vim.b[bufnr].task_sort or "urgency-" },
+        function(value) main.sort(value) end)
+      return
+    end
     main.sort(cmd_opts.args)
   end, {
-    nargs = 1,
-    desc = "Change task sort order (e.g. due+, urgency-)",
+    nargs = "?",
+    desc = "Change task sort order (no argument opens a picker)",
     complete = function(arg_lead)
-      local fields = { "urgency-", "urgency+", "due+", "due-", "priority-",
-                       "priority+", "project+", "project-", "description+" }
-      local results = {}
-      for _, f in ipairs(fields) do
-        if f:sub(1, #arg_lead) == arg_lead then table.insert(results, f) end
-      end
-      return results
+      local choices = require("taskwarrior.choices")
+      return choices.complete(choices.SORTS, arg_lead)
     end,
   })
 
@@ -90,14 +95,10 @@ function M.setup(main, complete_filter)
     main.group(cmd_opts.args)
   end, {
     nargs = "?",
-    desc = "Change task grouping (e.g. project, tag, none)",
+    desc = "Change task grouping (project, tag, none; see also <leader>tg)",
     complete = function(arg_lead)
-      local fields = { "project", "priority", "status", "tag", "none" }
-      local results = {}
-      for _, f in ipairs(fields) do
-        if f:sub(1, #arg_lead) == arg_lead then table.insert(results, f) end
-      end
-      return results
+      local choices = require("taskwarrior.choices")
+      return choices.complete(choices.GROUPS, arg_lead)
     end,
   })
 
@@ -201,6 +202,20 @@ function M.setup(main, complete_filter)
     views.tags()
   end, { nargs = 0, desc = "Show tag distribution" })
 
+  -- NOTE: the one-time tag repair (taskwarrior.repair_tags) is deliberately
+  -- NOT registered here. It is run once, ever, to clean up damage from the
+  -- TW3 hyphen misparse; a permanent :Tw* slot would clutter the command
+  -- list for every user forever. Invoke it explicitly:
+  --   :lua require("taskwarrior.repair_tags").run()
+
+  register("Table", function(o)
+    require("taskwarrior.table_view").open(o.args)
+  end, {
+    nargs = "*",
+    desc = "Show tasks as a configurable column table",
+    complete = function(arg_lead) return complete_filter(arg_lead) end,
+  })
+
   -- Structured feedback buffer. Default config: GitHub-issue + clipboard
   -- always available; HTTP "Send" only when feedback_endpoint is set.
   --   :<prefix>Feedback              open the empty form
@@ -282,6 +297,48 @@ function M.setup(main, complete_filter)
   register("Sync", function()
     main.sync()
   end, { nargs = 0, desc = "Run `task sync` with progress and error handling" })
+
+  -- Taskwarrior contexts (work, home, …).
+  --   :TwContext                      clear the active context
+  --   :TwContext <name>               activate it
+  --   :TwContext show                 active context + the defined ones
+  --   :TwContext define [name] [filter]  create one (prompts for anything
+  --                                      not supplied)
+  --   :TwContext delete [name]        remove a definition (prompts if omitted)
+  register("Context", function(o)
+    local ctx = require("taskwarrior.context")
+    local sub, rest = o.args:match("^(%S+)%s*(.*)$")
+    if sub == "define" then
+      local name, filter = rest:match("^(%S+)%s*(.*)$")
+      ctx.define(name, filter)
+    elseif sub == "delete" then
+      ctx.delete(rest)
+    else
+      main.context(o.args)
+    end
+  end, {
+    nargs = "*",
+    desc = "Taskwarrior context: bare = clear, <name> = activate, show/define/delete",
+    complete = function(arg_lead, cmd_line)
+      -- After `define`/`delete`, complete context names rather than verbs.
+      local words = vim.split(cmd_line or "", "%s+")
+      local sub = words[2]
+      local names = require("taskwarrior.context").list()
+      local candidates
+      if sub == "delete" and #words > 2 then
+        candidates = names
+      elseif sub == "define" or (sub == "delete" and #words > 3) then
+        candidates = {}
+      else
+        candidates = vim.list_extend({ "none", "show", "define", "delete" }, names)
+      end
+      local out = {}
+      for _, n in ipairs(candidates) do
+        if n:sub(1, #arg_lead) == arg_lead then table.insert(out, n) end
+      end
+      return out
+    end,
+  })
 
   register("Float", function(o)
     require("taskwarrior.buffer").open_float(o.args)

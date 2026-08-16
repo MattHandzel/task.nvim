@@ -107,6 +107,11 @@ local function open_scratch(name, lines, highlights, render_fn)
   return buf
 end
 
+-- Exported for taskwarrior.table_view, which is a view like the others but
+-- lives in its own module because it carries user-configurable columns.
+M._open_scratch = open_scratch
+M._define_view_highlights = define_view_highlights
+
 local function tw_date_to_ymd(val)
   if not val then return nil end
   if val:match("^%d%d%d%d%d%d%d%dT") then

@@ -31,6 +31,12 @@ M.defaults = {
 	sort_key = "<leader>ts", -- buffer-local keybind to change sort (nil to disable)
 	group_key = "<leader>tg", -- buffer-local keybind to change grouping (nil to disable)
 	project_add_key = "<leader>tpa", -- global keybind to register cwd as a project (nil to disable)
+	-- Global keybinds that open a picker over a finite set. All use
+	-- vim.ui.select, so they inherit whatever picker (and fuzzy matching)
+	-- you already use. Set any to nil/false to disable.
+	context_key = "<leader>tc", -- pick the Taskwarrior context
+	view_key = "<leader>tv",    -- pick a saved view
+	report_key = "<leader>tr",  -- pick a named report
 	filters = {}, -- named filter presets: { { key = "<key>", filter = "filter_str", label = "label" }, ... }
 	projects = {}, -- directory-to-project mapping: { ["/path/to/dir"] = "project_name", ... }
 	-- Icon mode. Auto-detects nerd-font availability via `vim.g.have_nerd_font`
@@ -43,11 +49,40 @@ M.defaults = {
 	icons = true,
 	border_style = "rounded", -- border style for floating windows: "rounded", "single", "double", "none"
 	capture_width = nil, -- quick-capture window width (nil = auto: min(80, 60% of editor))
-	capture_height = 3, -- quick-capture window height (lines visible; task is still 1 line)
+	-- Quick-capture window height. Line 1 is the task; every line below it
+	-- becomes an annotation on save (<C-CR> opens one). Raise this for a
+	-- roomier capture form.
+	capture_height = 3,
+	-- Turn the capture window's extra lines into annotations. Set false to
+	-- ignore everything below line 1.
+	capture_annotations = true,
+	-- Insert-mode key(s) that open a new annotation line in the capture
+	-- window without submitting. String or list of strings; false/"" disables.
+	-- Default binds both <M-CR> and <C-CR>.
+	--
+	-- <C-CR> only reaches Neovim from terminals speaking the CSI-u / kitty
+	-- keyboard protocol — and inside tmux only with `set -g extended-keys on`
+	-- (plus `set -as terminal-features '*:extkeys'`). Without that it arrives
+	-- as a plain <CR> and submits. <M-CR> (Alt+Enter) is sent as an
+	-- ESC-prefixed CR by virtually every terminal, which is why it's in the
+	-- default set.
+	capture_annotation_key = nil,
 	-- When the quick-capture window has unsubmitted text and the user presses
 	-- <Esc>, ask before discarding instead of closing silently. Set to false
 	-- to restore the pre-1.4 always-close behavior.
 	capture_confirm_close = true,
+	-- Columns for the :TwTable view (vit-style). Each entry is a field name,
+	-- or a table { field, label, width, align, format }. `width` omitted on
+	-- exactly one column makes it absorb the leftover width (usually
+	-- description). `format = function(value, task) -> string` renders the
+	-- cell yourself. Unknown fields fall through to the exported task, so
+	-- UDA columns need no extra wiring:
+	--   table_columns = {
+	--     "id", { field = "utility", label = "Util", width = 5, align = "right" },
+	--     { field = "description" }, "tags",
+	--   }
+	-- nil = the built-in default columns (see table_view.DEFAULT_COLUMNS).
+	table_columns = nil,
 	group_separator = true, -- show separator lines between groups
 	animation = true, -- enable open/transition animations
 	clamp_cursor = true, -- clamp cursor before UUID comment (prevents invisible cursor movement)
@@ -85,6 +120,13 @@ M.defaults = {
 	-- nvim_set_hl (e.g. `{ fg = "#f38ba8", bold = true }`).
 	--   tag_colors = { ["+urgent"] = "ErrorMsg", ["+someday"] = "Comment" }
 	tag_colors = {},
+	-- Per-field highlight overrides, keyed by field name (no colon). Applies
+	-- in task buffers AND the quick-capture window. Value is a highlight
+	-- group name or a table passed to nvim_set_hl. Any field not listed here
+	-- still gets the neutral `TaskField` group, so UDAs are never rendered
+	-- as plain description text.
+	--   field_colors = { utility = "DiagnosticInfo", depends = { fg = "#f38ba8" } }
+	field_colors = {},
 	-- Urgency color breakpoints used by task buffer virtual text and view
 	-- renderers. Rows are evaluated top-to-bottom; the first row whose
 	-- `threshold` is `<=` the urgency wins. The defaults reproduce the

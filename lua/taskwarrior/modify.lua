@@ -173,6 +173,19 @@ end
 -- user never has to remember Taskwarrior's attribute-value syntax.
 -- ---------------------------------------------------------------------------
 
+-- Tag deltas can't go through `modify +t` / `modify -t` — TW3 mis-parses
+-- hyphenated tag names (see taskmd.tw_change_tag). Route through the safe
+-- merge-and-replace helper, keeping modify_field's notify/refresh contract.
+local function modify_tag_delta(uuid, tag, remove)
+  local ok, out = require("taskwarrior.taskmd").tw_change_tag(uuid, tag, remove)
+  if ok then
+    notify("modify", "taskwarrior.nvim: " .. (remove and "-" or "+") .. tag)
+    refresh_all_task_buffers()
+  else
+    notify("error", "taskwarrior.nvim: modify failed\n" .. (out or ""), vim.log.levels.ERROR)
+  end
+end
+
 local function modify_field(uuid, spec)
   local parts, err = command.parse_args(spec)
   if not parts then
@@ -295,10 +308,10 @@ function M.modify_tag()
     if not choice then return end
     if choice == "(custom…)" then
       vim.ui.input({ prompt = "Tag (no leading +): " }, function(v)
-        if v and v ~= "" then modify_field(uuid, "+" .. v) end
+        if v and v ~= "" then modify_tag_delta(uuid, (v:gsub("^%+", ""))) end
       end)
     else
-      modify_field(uuid, "+" .. choice)
+      modify_tag_delta(uuid, choice)
     end
   end)
 end

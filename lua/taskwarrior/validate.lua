@@ -9,7 +9,10 @@ local KNOWN_KEYS = {
 	"on_delete", "confirm", "sort", "group", "fields", "wrap",
 	"capture_key", "open_key", "filter_key", "sort_key",
 	"group_key", "project_add_key", "filters", "projects", "icons",
+	"context_key", "view_key", "report_key",
 	"border_style", "capture_width", "capture_height", "capture_confirm_close",
+	"capture_annotations", "capture_annotation_key", "field_colors",
+	"table_columns",
 	"group_separator",
 	"animation", "clamp_cursor", "day_start_hour", "urgency_coefficients",
 	"urgency_value_mappers", "custom_urgency", "auto_backup", "auto_backup_keep",
@@ -40,6 +43,8 @@ local TOP_LEVEL_TYPES = {
 	sort_key              = "string",    -- nil OK
 	group_key             = "string",    -- nil OK
 	project_add_key       = "string",    -- nil OK
+	-- context_key / view_key / report_key accept `false` to disable, so they
+	-- are checked separately below rather than as plain strings.
 	filters               = "table",
 	projects              = "table",
 	icons                 = "boolean",
@@ -47,6 +52,9 @@ local TOP_LEVEL_TYPES = {
 	capture_width         = "number",    -- nil OK
 	capture_height        = "number",
 	capture_confirm_close = "boolean",
+	capture_annotations   = "boolean",
+	field_colors          = "table",
+	table_columns         = "table",     -- nil OK
 	group_separator       = "boolean",
 	animation             = "boolean",
 	clamp_cursor          = "boolean",
@@ -169,6 +177,19 @@ function M.validate(opts)
 	-- 2. Top-level type checks.
 	check_types(opts, TOP_LEVEL_TYPES, nil)
 
+	-- Picker keymaps: a keystring, or false to disable.
+	for _, key in ipairs({ "context_key", "view_key", "report_key" }) do
+		local v = opts[key]
+		if v ~= nil and v ~= false and type(v) ~= "string" then
+			error(
+				("taskwarrior.nvim: setup key '%s' must be a string or false, got %s"):format(
+					key, type(v)
+				),
+				0
+			)
+		end
+	end
+
 	-- feedback_endpoint: boolean false OR a string URL.
 	local fe = opts.feedback_endpoint
 	if fe ~= nil and fe ~= false and type(fe) ~= "string" then
@@ -274,6 +295,79 @@ function M.validate(opts)
 				error(
 					("taskwarrior.nvim: tag_colors['%s'] must be a string or table, got %s"):format(
 						tostring(tag), type(val)
+					),
+					0
+				)
+			end
+		end
+	end
+
+	-- 8d. capture_annotation_key — string, list of strings, or false.
+	if opts.capture_annotation_key ~= nil and opts.capture_annotation_key ~= false then
+		local v = opts.capture_annotation_key
+		if type(v) == "table" then
+			for i, k in ipairs(v) do
+				if type(k) ~= "string" then
+					error(
+						("taskwarrior.nvim: capture_annotation_key[%d] must be a string, got %s"):format(
+							i, type(k)
+						),
+						0
+					)
+				end
+			end
+		elseif type(v) ~= "string" then
+			error(
+				("taskwarrior.nvim: capture_annotation_key must be a string, list, or false, got %s"):format(
+					type(v)
+				),
+				0
+			)
+		end
+	end
+
+	-- 8c. Nested: table_columns — each entry is a field name or a table with
+	--     a `field` key; width must be a positive number when present.
+	if opts.table_columns ~= nil then
+		for i, col in ipairs(opts.table_columns) do
+			if type(col) == "table" then
+				if type(col.field) ~= "string" or col.field == "" then
+					error(
+						("taskwarrior.nvim: table_columns[%d].field must be a non-empty string"):format(i),
+						0
+					)
+				end
+				if col.width ~= nil and (type(col.width) ~= "number" or col.width < 1) then
+					error(
+						("taskwarrior.nvim: table_columns[%d].width must be a number >= 1"):format(i),
+						0
+					)
+				end
+				if col.format ~= nil and type(col.format) ~= "function" then
+					error(
+						("taskwarrior.nvim: table_columns[%d].format must be a function"):format(i),
+						0
+					)
+				end
+			elseif type(col) ~= "string" then
+				error(
+					("taskwarrior.nvim: table_columns[%d] must be a string or table, got %s"):format(
+						i, type(col)
+					),
+					0
+				)
+			end
+		end
+	end
+
+	-- 8b. Nested: field_colors — same value contract as tag_colors, keyed by
+	--     field name without the trailing colon.
+	if opts.field_colors ~= nil then
+		for field, val in pairs(opts.field_colors) do
+			if type(val) ~= "string" and type(val) ~= "table" then
+				error(
+					("taskwarrior.nvim: field_colors['%s'] must be a string or table, got %s"):format(
+						tostring(field), type(val)
 					),
 					0
 				)
