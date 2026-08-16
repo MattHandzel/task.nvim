@@ -93,6 +93,12 @@ this project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Task buffers now start at the top: the taskmd header comment is hidden
+  outright via extmark `conceal_lines` (Neovim 0.11+) instead of leaving a
+  blank concealed row, the spacer line beneath it is gone, and the cursor
+  opens on the first task rather than the header. On Neovim < 0.11 the
+  header still renders as one blank row (`conceal_lines` does not exist
+  there), but the spacer and cursor changes apply.
 - With `confirm = false`, the apply summary notification now points at
   `:TwUndo` — without the popup that notification is the only checkpoint,
   so the revert path is named where you'll see it.

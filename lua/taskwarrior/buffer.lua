@@ -194,6 +194,22 @@ end
 -- ---------------------------------------------------------------------------
 
 local hl_ns = vim.api.nvim_create_namespace("taskwarrior_hl")
+
+-- Whether this Neovim understands extmark `conceal_lines` (0.11+), which
+-- hides a line's screen row outright rather than blanking it. Probed once
+-- against a throwaway buffer — the option is silently ignored on older
+-- versions in some builds and errors in others, so feature-test rather
+-- than version-compare.
+local HAS_CONCEAL_LINES = (function()
+  local probe_buf = vim.api.nvim_create_buf(false, true)
+  local probe_ns = vim.api.nvim_create_namespace("taskwarrior_conceal_probe")
+  vim.api.nvim_buf_set_lines(probe_buf, 0, -1, false, { "probe" })
+  local ok = pcall(vim.api.nvim_buf_set_extmark, probe_buf, probe_ns, 0, 0, {
+    conceal_lines = "",
+  })
+  pcall(vim.api.nvim_buf_delete, probe_buf, { force = true })
+  return ok
+end)()
 local vt_ns = vim.api.nvim_create_namespace("taskwarrior_vt")
 
 -- Paint the checkbox visuals on a single line: a conceal extmark over the
@@ -638,10 +654,12 @@ local function highlight_line(bufnr, line_nr, line)
   -- the tasks themselves. Filter/sort/group are shown via statusline if the
   -- user configures it, and :TaskHelp lists the active settings.
   if line:match("^<!%-%-.*taskmd") then
-    vim.api.nvim_buf_set_extmark(bufnr, hl_ns, line_nr, 0, {
-      end_col = #line, hl_group = "TaskHeader",
-      conceal = "",
-    })
+    local opts = { end_col = #line, hl_group = "TaskHeader", conceal = "" }
+    -- `conceal_lines` (Neovim 0.11+) removes the row entirely instead of
+    -- leaving a blank one, so the first task sits on the top line. Older
+    -- Neovim keeps the previous behaviour: an empty concealed row.
+    if HAS_CONCEAL_LINES then opts.conceal_lines = "" end
+    vim.api.nvim_buf_set_extmark(bufnr, hl_ns, line_nr, 0, opts)
     return
   end
 
@@ -808,6 +826,24 @@ end
 -- ---------------------------------------------------------------------------
 -- refresh_buf: re-render and re-highlight a task buffer
 -- ---------------------------------------------------------------------------
+
+-- Park the cursor on the first task line. The header row above it is
+-- concealed away entirely on Neovim 0.11+, so leaving the cursor on line 1
+-- would strand it on a row the user cannot see.
+function M.cursor_to_first_task(win, bufnr)
+  win = win or 0
+  bufnr = bufnr or vim.api.nvim_win_get_buf(win)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  for i, line in ipairs(lines) do
+    if uuid_from_line(line) or line:match("^%- %[") then
+      pcall(vim.api.nvim_win_set_cursor, win, { i, 6 })
+      return i
+    end
+  end
+  -- No tasks (empty filter): sit on the first line that isn't the header.
+  pcall(vim.api.nvim_win_set_cursor, win, { math.min(2, #lines), 0 })
+  return nil
+end
 
 function M.refresh_buf(bufnr)
   if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
@@ -1339,6 +1375,7 @@ function M.open_task_buf(filter_str, on_write_fn, detect_project_fn)
   vim.wo[0].conceallevel = 3
   vim.wo[0].concealcursor = "nvic"
   vim.wo[0].wrap = config.options.wrap ~= false
+  M.cursor_to_first_task(0, bufnr)
 
   -- Set name safely — wipe stale buffer with same name if needed
   local buf_name = "Tasks: " .. filter_str
@@ -1408,6 +1445,7 @@ function M.open_float(filter_str)
     pcall(vim.api.nvim_win_close, win, true)
   end, { buffer = scratch, nowait = true, silent = true })
 
+  M.cursor_to_first_task(win, scratch)
   apply_virtual_text(scratch)
 end
 

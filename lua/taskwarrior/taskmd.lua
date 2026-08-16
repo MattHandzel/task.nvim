@@ -1184,7 +1184,10 @@ function M.render(args)
     "<!-- taskmd filter: %s | sort: %s%s%s | rendered_at: %s -->",
     filter_str, sort_spec, group_part, udas_part, now_iso())
 
-  local lines = { header, "" }
+  -- No blank line after the header: the header itself is concealed in the
+  -- task buffer, so a spacer under it just pushes the first task down two
+  -- rows for no visual benefit. Group headers below bring their own spacing.
+  local lines = { header }
   if group_field then
     local groups = {}
     local order = {}
