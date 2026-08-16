@@ -604,6 +604,10 @@ local function define_highlights()
   -- Overdue right-align pill uses an inverted-fg style so it pops against
   -- normal right-align virt-text.
   vim.api.nvim_set_hl(0, "TaskOverdueBadge",{ fg = "#1e1e2e", bg = "#f38ba8", bold = true })
+  -- Catch-all for any other `field:value` (UDAs, depends:, until:, …) so no
+  -- field renders as plain description text. Per-field overrides go through
+  -- config.field_colors.
+  vim.api.nvim_set_hl(0, "TaskField",       { link = "TaskSubtle" })
 end
 
 -- Highlight patterns: { lua pattern, highlight group, is_prefix_match }
@@ -696,6 +700,41 @@ local function highlight_line(bufnr, line_nr, line)
     pos = e + 1
   end
 
+  local config = require("taskwarrior.config")
+
+  -- Every remaining `field:value` token — UDAs (utility:20), depends:,
+  -- until:, and any field the specific patterns below don't cover. Painted
+  -- FIRST so the specific patterns overwrite it where they apply, and so
+  -- an unknown field never reads as plain description text. Per-field
+  -- overrides come from config.field_colors, keyed by field name.
+  local field_colors = config.options.field_colors or {}
+  pos = 1
+  while true do
+    local s, e, name = line:find("([%w_]+):%S+", pos)
+    if not s then break end
+    local prev = s > 1 and line:sub(s - 1, s - 1) or ""
+    local value = line:sub(s + #name + 1, e)
+    -- Require a token boundary, reject numeric names ("12:30" is a clock
+    -- time) and `//` values (URL schemes) — neither is a Taskwarrior field.
+    if (prev == "" or prev:match("%s"))
+      and not name:match("^%d")
+      and not value:match("^//") then
+      local hl_group = "TaskField"
+      local override = field_colors[name]
+      if type(override) == "string" then
+        hl_group = override
+      elseif type(override) == "table" then
+        local gname = "TaskField_" .. name:gsub("[^%w]", "_")
+        pcall(vim.api.nvim_set_hl, 0, gname, override)
+        hl_group = gname
+      end
+      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, line_nr, s - 1, {
+        end_col = e, hl_group = hl_group,
+      })
+    end
+    pos = e + 1
+  end
+
   -- All other patterns
   for _, pat in ipairs(HL_PATTERNS) do
     pos = 1
@@ -712,7 +751,6 @@ local function highlight_line(bufnr, line_nr, line)
   -- Tags: +word, but only when the `+` is at start-of-line or preceded by a
   -- non-word character. Prevents "housing+food" from highlighting "+food".
   -- Honors config.tag_colors for per-tag overrides (e.g. +urgent → ErrorMsg).
-  local config = require("taskwarrior.config")
   local tag_colors = config.options.tag_colors or {}
   pos = 1
   while true do

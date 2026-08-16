@@ -400,7 +400,9 @@ Full schema with defaults: >
       icons             = true,
       border_style      = "rounded",
       capture_width     = nil,
-      capture_height    = 3,
+      capture_height    = 3,          -- line 1 = task, lines below it become
+                                      -- annotations (<C-CR> opens one)
+      capture_annotations = true,     -- false = ignore lines below line 1
       capture_confirm_close = true,  -- prompt before discarding text on <Esc>
       group_separator   = true,
       animation         = true,
@@ -420,6 +422,8 @@ Full schema with defaults: >
       },
       -- Per-tag highlight overrides (see |taskwarrior-tag-colors|).
       tag_colors = {},                -- e.g. { ["+urgent"] = "ErrorMsg" }
+      field_colors = {},              -- e.g. { utility = "DiagnosticInfo" };
+                                      -- unlisted fields get `TaskField`
       -- Urgency breakpoints for virtual text + views (|taskwarrior-urgency-colors|).
       urgency_colors = {
         { threshold = 8, hl = "TaskPriorityH" },

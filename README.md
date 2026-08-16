@@ -231,7 +231,12 @@ require("taskwarrior").setup({
   icons = true,                -- nerd font checkbox/header icons
   border_style = "rounded",    -- "rounded" | "single" | "double" | "none"
   capture_width = nil,         -- quick-capture width (nil = auto)
-  capture_height = 3,          -- quick-capture height in lines
+  capture_height = 3,          -- quick-capture height in lines; line 1 is the
+                               -- task, lines below it become annotations
+  capture_annotations = true,  -- false = ignore everything below line 1
+  field_colors = {},           -- per-field highlight override, e.g.
+                               -- { utility = "DiagnosticInfo" }. Fields not
+                               -- listed still get the neutral TaskField group
   auto_backup = true,          -- copy ~/.task to stdpath("data")/taskwarrior.nvim/backups/ before apply
   auto_backup_keep = 10,       -- number of recent backups to retain
   delegate = {

@@ -43,7 +43,13 @@ M.defaults = {
 	icons = true,
 	border_style = "rounded", -- border style for floating windows: "rounded", "single", "double", "none"
 	capture_width = nil, -- quick-capture window width (nil = auto: min(80, 60% of editor))
-	capture_height = 3, -- quick-capture window height (lines visible; task is still 1 line)
+	-- Quick-capture window height. Line 1 is the task; every line below it
+	-- becomes an annotation on save (<C-CR> opens one). Raise this for a
+	-- roomier capture form.
+	capture_height = 3,
+	-- Turn the capture window's extra lines into annotations. Set false to
+	-- ignore everything below line 1.
+	capture_annotations = true,
 	-- When the quick-capture window has unsubmitted text and the user presses
 	-- <Esc>, ask before discarding instead of closing silently. Set to false
 	-- to restore the pre-1.4 always-close behavior.
@@ -85,6 +91,13 @@ M.defaults = {
 	-- nvim_set_hl (e.g. `{ fg = "#f38ba8", bold = true }`).
 	--   tag_colors = { ["+urgent"] = "ErrorMsg", ["+someday"] = "Comment" }
 	tag_colors = {},
+	-- Per-field highlight overrides, keyed by field name (no colon). Applies
+	-- in task buffers AND the quick-capture window. Value is a highlight
+	-- group name or a table passed to nvim_set_hl. Any field not listed here
+	-- still gets the neutral `TaskField` group, so UDAs are never rendered
+	-- as plain description text.
+	--   field_colors = { utility = "DiagnosticInfo", depends = { fg = "#f38ba8" } }
+	field_colors = {},
 	-- Urgency color breakpoints used by task buffer virtual text and view
 	-- renderers. Rows are evaluated top-to-bottom; the first row whose
 	-- `threshold` is `<=` the urgency wins. The defaults reproduce the

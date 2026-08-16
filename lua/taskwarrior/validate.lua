@@ -10,6 +10,7 @@ local KNOWN_KEYS = {
 	"capture_key", "open_key", "filter_key", "sort_key",
 	"group_key", "project_add_key", "filters", "projects", "icons",
 	"border_style", "capture_width", "capture_height", "capture_confirm_close",
+	"capture_annotations", "field_colors",
 	"group_separator",
 	"animation", "clamp_cursor", "day_start_hour", "urgency_coefficients",
 	"urgency_value_mappers", "custom_urgency", "auto_backup", "auto_backup_keep",
@@ -47,6 +48,8 @@ local TOP_LEVEL_TYPES = {
 	capture_width         = "number",    -- nil OK
 	capture_height        = "number",
 	capture_confirm_close = "boolean",
+	capture_annotations   = "boolean",
+	field_colors          = "table",
 	group_separator       = "boolean",
 	animation             = "boolean",
 	clamp_cursor          = "boolean",
@@ -274,6 +277,21 @@ function M.validate(opts)
 				error(
 					("taskwarrior.nvim: tag_colors['%s'] must be a string or table, got %s"):format(
 						tostring(tag), type(val)
+					),
+					0
+				)
+			end
+		end
+	end
+
+	-- 8b. Nested: field_colors — same value contract as tag_colors, keyed by
+	--     field name without the trailing colon.
+	if opts.field_colors ~= nil then
+		for field, val in pairs(opts.field_colors) do
+			if type(val) ~= "string" and type(val) ~= "table" then
+				error(
+					("taskwarrior.nvim: field_colors['%s'] must be a string or table, got %s"):format(
+						tostring(field), type(val)
 					),
 					0
 				)

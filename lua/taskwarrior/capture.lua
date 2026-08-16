@@ -45,6 +45,14 @@ function M.open(refresh_fn)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
   vim.cmd("startinsert")
 
+  -- Color project:/+tag/due:/priority:/UDA fields as they're typed, using the
+  -- same highlighter the task buffer uses (tw 14d722e8). Re-runs on every
+  -- text change so the coloring tracks what you're typing.
+  local ok_buffer, tw_buffer = pcall(require, "taskwarrior.buffer")
+  if ok_buffer then
+    pcall(tw_buffer.setup_buf_syntax, buf)
+  end
+
   -- Close is always deferred via vim.schedule: cmp's keymap solver (and other
   -- expr-mapping wrappers) can invoke our callbacks from inside a textlock
   -- context where nvim_win_close raises E565. Scheduling moves the close to
@@ -65,8 +73,10 @@ function M.open(refresh_fn)
   local function close_with_confirm()
     vim.schedule(function()
       if config.options.capture_confirm_close ~= false then
+        -- Check every line, not just the first: annotation lines below it
+        -- are unsubmitted content too.
         local line = vim.api.nvim_buf_is_valid(buf)
-            and (vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or "")
+            and table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
             or ""
         if line:match("%S") then
           -- vim.fn.confirm requires a non-textlock context; we're already
@@ -76,7 +86,9 @@ function M.open(refresh_fn)
             -- Restore insert mode at the line's end so typing resumes naturally.
             if vim.api.nvim_win_is_valid(win) then
               vim.api.nvim_set_current_win(win)
-              vim.api.nvim_win_set_cursor(win, { 1, #line })
+              local last = vim.api.nvim_buf_line_count(buf)
+              local last_text = vim.api.nvim_buf_get_lines(buf, last - 1, last, false)[1] or ""
+              vim.api.nvim_win_set_cursor(win, { last, #last_text })
               vim.cmd("startinsert!")
             end
             return
@@ -97,8 +109,38 @@ function M.open(refresh_fn)
     return vim.fn.strcharpart(text, 0, max) .. "…"
   end
 
-  local function submit(line)
+  -- Lines below the first become annotations on the new task (tw 14d722e8).
+  -- Set capture_annotations = false to ignore them instead.
+  local function annotate_extra_lines(uuid, extra)
+    if not uuid or uuid == "" or #extra == 0 then return 0 end
+    local done = 0
+    for _, text in ipairs(extra) do
+      local result = command.mutate({ uuid, "annotate", "--", text })
+      if result.ok then
+        done = done + 1
+      else
+        vim.notify("taskwarrior.nvim: annotate failed\n" .. (result.output or ""),
+          vim.log.levels.ERROR)
+      end
+    end
+    return done
+  end
+
+  local function extra_lines()
+    if config.options.capture_annotations == false then return {} end
+    if not vim.api.nvim_buf_is_valid(buf) then return {} end
+    local all = vim.api.nvim_buf_get_lines(buf, 1, -1, false)
+    local out = {}
+    for _, l in ipairs(all) do
+      local t = vim.trim(l)
+      if t ~= "" then out[#out + 1] = t end
+    end
+    return out
+  end
+
+  local function submit(line, extra)
     if not line or line == "" then return end
+    extra = extra or {}
 
     -- Greedy-parse the line so utility:20, project:X, +tag, due:tom etc.
     -- become real fields even when they appear in the middle of free-form
@@ -117,7 +159,13 @@ function M.open(refresh_fn)
       if desc and desc ~= "" then
         local new_uuid, add_ok = tm.tw_add(desc, fields)
         if new_uuid and new_uuid ~= "" then
-          vim.notify(('taskwarrior.nvim: added "%s"'):format(snippet(desc)))
+          local annotated = annotate_extra_lines(new_uuid, extra)
+          local msg = ('taskwarrior.nvim: added "%s"'):format(snippet(desc))
+          if annotated > 0 then
+            msg = msg .. (" (+%d annotation%s)"):format(
+              annotated, annotated == 1 and "" or "s")
+          end
+          vim.notify(msg)
         elseif add_ok then
           vim.notify(
             "taskwarrior.nvim: added task, but Taskwarrior did not report its UUID; not retrying",
@@ -157,13 +205,27 @@ function M.open(refresh_fn)
       return "<C-y>"
     end
     local line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
+    local extra = extra_lines()
     -- Defer close + submit to escape any active textlock (nvim-cmp, etc.).
     vim.schedule(function()
       close()
-      submit(line)
+      submit(line, extra)
     end)
     return ""
   end, { buffer = buf, expr = true })
+
+  -- <C-CR> / <C-o> open a new line below for an annotation without
+  -- submitting — <CR> stays "submit everything" from any line.
+  local function open_annotation_line()
+    local last = vim.api.nvim_buf_line_count(buf)
+    vim.api.nvim_buf_set_lines(buf, last, last, false, { "" })
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_set_cursor(win, { last + 1, 0 })
+    end
+    vim.cmd("startinsert!")
+  end
+  vim.keymap.set("i", "<C-CR>", open_annotation_line, { buffer = buf })
+  vim.keymap.set("i", "<C-o>", open_annotation_line, { buffer = buf })
 
   vim.keymap.set("i", "<Esc>", close_with_confirm, { buffer = buf })
   vim.keymap.set("n", "<Esc>", close_with_confirm, { buffer = buf })
