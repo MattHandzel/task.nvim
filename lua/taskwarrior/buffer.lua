@@ -62,7 +62,19 @@ function M.set_buf_lines(bufnr, text)
   if lines[#lines] == "" then
     table.remove(lines)
   end
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+  -- Render is not a user edit, so it must not be undoable. Otherwise `u` in a
+  -- freshly opened buffer reverts the population itself and leaves the empty
+  -- buffer behind — which the save path reads as "every task was deleted",
+  -- and duly offers to delete them all. Setting undolevels to -1 across the
+  -- change is the documented way to make it non-undoable (:h undolevels);
+  -- the user's own edits afterwards still undo normally.
+  vim.api.nvim_buf_call(bufnr, function()
+    local saved = vim.api.nvim_get_option_value("undolevels", { buf = bufnr })
+    vim.api.nvim_set_option_value("undolevels", -1, { buf = bufnr })
+    local ok, err = pcall(vim.api.nvim_buf_set_lines, bufnr, 0, -1, false, lines)
+    vim.api.nvim_set_option_value("undolevels", saved, { buf = bufnr })
+    if not ok then error(err) end
+  end)
 end
 
 -- ---------------------------------------------------------------------------
