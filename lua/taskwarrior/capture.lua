@@ -1,10 +1,5 @@
 local M = {}
-
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  local ok = vim.v.shell_error == 0
-  return out, ok
-end
+local command = require("taskwarrior.command")
 
 -- Omnifunc for the capture window — delegates to task.completion.complete_filter
 -- so users get project:, +tag, priority:, field: completions with <Tab>.
@@ -121,7 +116,7 @@ function M.open(refresh_fn)
         else
           vim.notify("taskwarrior.nvim: add failed", vim.log.levels.ERROR)
         end
-        refresh_fn()
+        if add_ok then refresh_fn() end
         return
       end
     end
@@ -129,9 +124,8 @@ function M.open(refresh_fn)
     -- Fallback only when parse_capture itself failed (taskmd module missing,
     -- or input was unparseable). Use literal add so the user doesn't lose
     -- their typed content.
-    local escaped = line:gsub("'", "'\\''")
-    local _, ok = run("task rc.bulk=0 rc.confirmation=off add -- '" .. escaped .. "'")
-    if ok then
+    local result = command.mutate({ "add", "--", line })
+    if result.ok then
       vim.notify("taskwarrior.nvim: added task (unparsed)")
       refresh_fn()
     else

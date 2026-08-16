@@ -1,14 +1,9 @@
 local M = {}
+local command = require("taskwarrior.command")
 
 -- ---------------------------------------------------------------------------
 -- Shared utilities
 -- ---------------------------------------------------------------------------
-
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  local ok = vim.v.shell_error == 0
-  return out, ok
-end
 
 local function uuid_from_line(line)
   return line:match("<!%-%-.*uuid:([0-9a-fA-F]+).*%-%->")
@@ -913,11 +908,8 @@ function M.setup_buf_keymaps(bufnr)
     end
     vim.ui.input({ prompt = "Annotation: " }, function(text)
       if not text or text == "" then return end
-      local _, ok = run(
-        string.format("task rc.bulk=0 rc.confirmation=off %s annotate %s",
-          short_uuid, vim.fn.shellescape(text))
-      )
-      if ok then
+      local result = command.mutate({ short_uuid, "annotate", text })
+      if result.ok then
         vim.notify("taskwarrior.nvim: annotation added")
         M.refresh_buf(bufnr)
       else
@@ -939,12 +931,16 @@ function M.setup_buf_keymaps(bufnr)
       completion = "custom,v:lua.require'taskwarrior'._complete_modify",
     }, function(input)
       if not input or input == "" then return end
-      local escaped = input:gsub("'", "'\\''")
-      local _, ok = run(
-        string.format("task rc.bulk=0 rc.confirmation=off %s modify '%s'",
-          short_uuid, escaped)
-      )
-      if ok then
+      local parts, err = command.parse_args(input)
+      if not parts then
+        vim.notify("taskwarrior.nvim: invalid modify arguments\n" .. err,
+          vim.log.levels.ERROR)
+        return
+      end
+      local args = { short_uuid, "modify" }
+      vim.list_extend(args, parts)
+      local result = command.mutate(args)
+      if result.ok then
         vim.notify("taskwarrior.nvim: modified")
         M.refresh_buf(bufnr)
       else
@@ -1021,10 +1017,9 @@ function M.setup_buf_keymaps(bufnr)
       vim.notify("taskwarrior.nvim: no UUID on this line", vim.log.levels.WARN)
       return
     end
-    local out, ok = run(
-      string.format("task rc.bulk=0 rc.confirmation=off %s info", short_uuid)
-    )
-    if not ok or out == "" then
+    local result = command.read({ short_uuid, "info" })
+    local out = result.output
+    if not result.ok or out == "" then
       vim.notify("taskwarrior.nvim: info failed", vim.log.levels.ERROR)
       return
     end

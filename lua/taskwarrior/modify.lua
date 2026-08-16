@@ -8,11 +8,7 @@
 local M = {}
 
 local notify = require("taskwarrior.notify")
-
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  return out, vim.v.shell_error == 0
-end
+local command = require("taskwarrior.command")
 
 local function uuid_from_line(line)
   return line:match("<!%-%-.*uuid:([0-9a-fA-F]+).*%-%->")
@@ -27,12 +23,6 @@ local function current_uuid()
     notify("warn", "taskwarrior.nvim: no UUID on this line", vim.log.levels.WARN)
   end
   return u
-end
-
--- Try the Python CLI-sanitizing shell-escape before falling back to the
--- stdlib single-quote replacement. Works on all platforms nvim supports.
-local function shq(s)
-  return vim.fn.shellescape(s or "")
 end
 
 -- ---------------------------------------------------------------------------
@@ -62,15 +52,12 @@ function M.append_or_prepend(mode, text)
   if not uuid then return end
   local function finish(input)
     if not input or input == "" then return end
-    local cmd = string.format(
-      "task rc.bulk=0 rc.confirmation=off %s %s %s",
-      uuid, mode, shq(input))
-    local out, ok = run(cmd)
-    if ok then
+    local result = command.mutate({ uuid, mode, input })
+    if result.ok then
       notify("modify", string.format("taskwarrior.nvim: %s → %s", mode, uuid))
       refresh_all_task_buffers()
     else
-      notify("error", string.format("taskwarrior.nvim: %s failed\n%s", mode, out),
+      notify("error", string.format("taskwarrior.nvim: %s failed\n%s", mode, result.output),
         vim.log.levels.ERROR)
     end
   end
@@ -94,13 +81,12 @@ function M.prepend(text) M.append_or_prepend("prepend", text) end
 function M.duplicate()
   local uuid = current_uuid()
   if not uuid then return end
-  local out, ok = run(string.format(
-    "task rc.bulk=0 rc.confirmation=off %s duplicate", uuid))
-  if ok then
+  local result = command.mutate({ uuid, "duplicate" })
+  if result.ok then
     notify("modify", "taskwarrior.nvim: duplicated " .. uuid)
     refresh_all_task_buffers()
   else
-    notify("error", "taskwarrior.nvim: duplicate failed\n" .. out, vim.log.levels.ERROR)
+    notify("error", "taskwarrior.nvim: duplicate failed\n" .. result.output, vim.log.levels.ERROR)
   end
 end
 
@@ -123,13 +109,18 @@ function M.purge(filter)
       notify("modify", "taskwarrior.nvim: purge cancelled")
       return
     end
-    local out, ok = run(string.format(
-      "task rc.bulk=0 rc.confirmation=off %s purge", filter))
-    if ok then
+    local args, err = command.parse_args(filter)
+    if not args then
+      notify("error", "taskwarrior.nvim: invalid purge filter\n" .. err, vim.log.levels.ERROR)
+      return
+    end
+    args[#args + 1] = "purge"
+    local result = command.mutate(args)
+    if result.ok then
       notify("modify", "taskwarrior.nvim: purged " .. filter)
       refresh_all_task_buffers()
     else
-      notify("error", "taskwarrior.nvim: purge failed\n" .. out, vim.log.levels.ERROR)
+      notify("error", "taskwarrior.nvim: purge failed\n" .. result.output, vim.log.levels.ERROR)
     end
   end)
 end
@@ -158,13 +149,12 @@ function M.denotate()
   local anns = task.annotations
   local function finish(text)
     if not text or text == "" then return end
-    local out, ok = run(string.format(
-      "task rc.bulk=0 rc.confirmation=off %s denotate %s", uuid, shq(text)))
-    if ok then
+    local result = command.mutate({ uuid, "denotate", text })
+    if result.ok then
       notify("modify", "taskwarrior.nvim: annotation removed")
       refresh_all_task_buffers()
     else
-      notify("error", "taskwarrior.nvim: denotate failed\n" .. out, vim.log.levels.ERROR)
+      notify("error", "taskwarrior.nvim: denotate failed\n" .. result.output, vim.log.levels.ERROR)
     end
   end
   if #anns == 1 then
@@ -184,13 +174,19 @@ end
 -- ---------------------------------------------------------------------------
 
 local function modify_field(uuid, spec)
-  local out, ok = run(string.format(
-    "task rc.bulk=0 rc.confirmation=off %s modify %s", uuid, spec))
-  if ok then
+  local parts, err = command.parse_args(spec)
+  if not parts then
+    notify("error", "taskwarrior.nvim: invalid modify arguments\n" .. err, vim.log.levels.ERROR)
+    return
+  end
+  local args = { uuid, "modify" }
+  vim.list_extend(args, parts)
+  local result = command.mutate(args)
+  if result.ok then
     notify("modify", "taskwarrior.nvim: " .. spec)
     refresh_all_task_buffers()
   else
-    notify("error", "taskwarrior.nvim: modify failed\n" .. out, vim.log.levels.ERROR)
+    notify("error", "taskwarrior.nvim: modify failed\n" .. result.output, vim.log.levels.ERROR)
   end
 end
 

@@ -27,22 +27,7 @@ M.DATE_FIELDS = { due = true, scheduled = true, wait = true, ["until"] = true }
 local KNOWN_FIELDS = M.KNOWN_FIELDS
 local LIST_FIELDS = M.LIST_FIELDS
 local DATE_FIELDS = M.DATE_FIELDS
-
-local BASE_RC = { "rc.bulk=0", "rc.confirmation=off" }
-
--- rc overrides for READ-ONLY invocations whose stdout gets parsed (export
--- JSON, _udas/_projects/_tags line lists). vim.fn.system merges stderr into
--- stdout, so chatter must be suppressed at the source (issue #5):
---   rc.verbose=nothing — silences footnotes, the `task news` nag, and
---                        "Configuration override" notices (which our own
---                        rc.* args would otherwise trigger for users with
---                        verbose=override).
---   rc.color=off       — guards against forced-color configs injecting ANSI
---                        escapes into the parse stream.
--- Hook output can still leak through; decode_json_array tolerates that.
--- Mutation paths keep BASE_RC — tw_add parses "Created task <uuid>" from
--- verbose output, so silencing there would break it.
-local READ_RC = { "rc.bulk=0", "rc.confirmation=off", "rc.verbose=nothing", "rc.color=off" }
+local command = require("taskwarrior.command")
 
 -- ---------------------------------------------------------------------------
 -- Small helpers
@@ -179,29 +164,8 @@ end
 M.DEFAULT_URGENCY_VALUE_MAPPERS.effort = M.effort_to_minutes
 
 -- ---------------------------------------------------------------------------
--- Taskwarrior adapter (subprocess via vim.fn.system)
+-- Taskwarrior adapter
 -- ---------------------------------------------------------------------------
-
--- Layer B — runtime defense for the missing-binary case. Layer A
--- (startup-time check in plugin/taskwarrior.lua) catches users who never
--- had Taskwarrior installed; this catches users who had it at startup
--- but lost it mid-session (uninstall, PATH change, container teardown).
--- Without this guard, vim.fn.system({"task",...}) raises E475 from
--- inside vim.schedule and surfaces to the user as a Lua trace.
---
--- WARN throttling and the executable check live in
--- lua/taskwarrior/runtime.lua so every code path that spawns `task`
--- shares one cached check + one notification policy.
-local function run(argv)
-  if not vim or not vim.fn then
-    error("taskmd.lua requires the vim global (must run inside neovim)")
-  end
-  if not require("taskwarrior.runtime").ensure_available() then
-    return "", 127
-  end
-  local out = vim.fn.system(argv)
-  return out, vim.v.shell_error
-end
 
 -- Taskwarrior's built-in virtual tags. These are computed per-task (e.g.
 -- +ACTIVE for started tasks, +OVERDUE for tasks past due). They are NOT
@@ -357,33 +321,31 @@ function M.decode_json_array(text)
   return nil
 end
 
--- Shell-string export for callers that assemble their filter as a plain
--- string (graph, inbox, views, telescope, …). The shell form lets us
--- redirect stderr away from the parse stream entirely — combined with
--- READ_RC suppression and decode_json_array this is the hardened
--- replacement for the ten hand-rolled `find("%[")` slices that issue #5
--- exposed. Returns a list (possibly empty), or nil when the command failed
--- or its output was unparseable.
+-- Export helper for callers that assemble filters as strings (graph, inbox,
+-- views, telescope, …). command.parse_args converts Taskwarrior's filter
+-- syntax to argv without invoking a shell. Returns a list (possibly empty),
+-- or nil when the command failed or its output was unparseable.
 function M.shell_export(filter_str)
-  if not require("taskwarrior.runtime").ensure_available() then return nil end
-  local cmd = string.format(
-    "task %s rc.json.array=on %s export 2>/dev/null",
-    table.concat(READ_RC, " "), filter_str or "")
-  local out = vim.fn.system(cmd)
-  if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then return nil end
-  return M.decode_json_array(out)
+  local args, err = command.parse_args(filter_str)
+  if not args then return nil, err end
+  table.insert(args, 1, "rc.json.array=on")
+  args[#args + 1] = "export"
+  local result = command.read(args, { ok_codes = { 0, 1 } })
+  if not result.ok then return nil, result.output end
+  return M.decode_json_array(result.output)
 end
 
 function M.tw_export(filter_args)
-  local argv = { "task" }
-  for _, a in ipairs(READ_RC) do argv[#argv + 1] = a end
-  argv[#argv + 1] = "rc.json.array=on"
-  for _, a in ipairs(normalize_tag_filters(normalize_duration_minutes(filter_args))) do argv[#argv + 1] = a end
-  argv[#argv + 1] = "export"
-  local text, rc = run(argv)
-  if rc ~= 0 and rc ~= 1 then
-    error("task export failed: " .. tostring(text))
+  local cmd_args = { "rc.json.array=on" }
+  for _, a in ipairs(normalize_tag_filters(normalize_duration_minutes(filter_args))) do
+    cmd_args[#cmd_args + 1] = a
   end
+  cmd_args[#cmd_args + 1] = "export"
+  local result = command.read(cmd_args, { ok_codes = { 0, 1 } })
+  if not result.ok then
+    error("task export failed: " .. tostring(result.output))
+  end
+  local text = result.output
   if not text or vim.trim(text) == "" then return {} end
   local parsed = M.decode_json_array(text)
   if not parsed then
@@ -432,19 +394,16 @@ function M.tw_add(desc, fields)
   -- rc.verbose=new-uuid forces "Created task <uuid>." to stdout even when the
   -- user has `verbose=nothing` in their .taskrc. Without it, tw_add returns ""
   -- and callers that depend on a UUID (capture.submit) wrongly assume failure.
-  local argv = { "task" }
-  for _, a in ipairs(BASE_RC) do argv[#argv + 1] = a end
-  argv[#argv + 1] = "rc.verbose=new-uuid"
-  argv[#argv + 1] = "add"
-  argv[#argv + 1] = "description:" .. desc
-  for _, a in ipairs(fields_to_args(fields or {})) do argv[#argv + 1] = a end
-  local out, code = run(argv)
-  if code ~= 0 then return "", false end
+  local cmd_args = { "rc.verbose=new-uuid", "add", "description:" .. desc }
+  for _, a in ipairs(fields_to_args(fields or {})) do cmd_args[#cmd_args + 1] = a end
+  local result = command.mutate(cmd_args)
+  local out, code = result.output, result.code
+  if not result.ok then return "", false, out, code end
   local uuid = (out or ""):match("[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+%-[0-9a-fA-F]+")
   -- Keep the UUID as the first return value for existing callers. The second
   -- value distinguishes a failed command from a successful mutation whose
   -- output could not be parsed; capture must not retry the latter (issue #7).
-  return uuid or "", true
+  return uuid or "", true, out, code
 end
 
 function M.tw_modify(uuid, fields)
@@ -453,22 +412,17 @@ function M.tw_modify(uuid, fields)
   fields.description = nil
   local parts = fields_to_args(fields)
   if desc ~= nil then parts[#parts + 1] = "description:" .. desc end
-  if #parts == 0 then return end
-  local argv = { "task" }
-  for _, a in ipairs(BASE_RC) do argv[#argv + 1] = a end
-  argv[#argv + 1] = uuid
-  argv[#argv + 1] = "modify"
-  for _, a in ipairs(parts) do argv[#argv + 1] = a end
-  run(argv)
+  if #parts == 0 then return true, "", 0 end
+  local cmd_args = { uuid, "modify" }
+  vim.list_extend(cmd_args, parts)
+  local result = command.mutate(cmd_args)
+  return result.ok, result.output, result.code
 end
 
 local function simple_tw(verb)
   return function(uuid)
-    local argv = { "task" }
-    for _, a in ipairs(BASE_RC) do argv[#argv + 1] = a end
-    argv[#argv + 1] = uuid
-    argv[#argv + 1] = verb
-    run(argv)
+    local result = command.mutate({ uuid, verb })
+    return result.ok, result.output, result.code
   end
 end
 
@@ -478,10 +432,8 @@ M.tw_start  = simple_tw("start")
 M.tw_stop   = simple_tw("stop")
 
 function M.tw_udas()
-  local argv = { "task" }
-  for _, a in ipairs(READ_RC) do argv[#argv + 1] = a end
-  argv[#argv + 1] = "_udas"
-  local out, _ = run(argv)
+  local result = command.read({ "_udas" })
+  local out = result.ok and result.output or ""
   local known = list_to_set(KNOWN_FIELDS)
   known["priority"] = true
   local result = {}
@@ -496,10 +448,8 @@ end
 
 function M.tw_completions()
   local function helper(cmd)
-    local argv = { "task" }
-    for _, a in ipairs(READ_RC) do argv[#argv + 1] = a end
-    argv[#argv + 1] = cmd
-    return run(argv)
+    local result = command.read({ cmd })
+    return result.ok and result.output or ""
   end
   local p_out = helper("_projects")
   local t_out = helper("_tags")
@@ -1337,8 +1287,15 @@ function M.apply(args)
 
   local summary = {
     added = 0, modified = 0, completed = 0, deleted = 0,
-    errors = {}, action_count = #diff, conflicts = conflicts,
+    errors = {}, action_count = 0, conflicts = conflicts,
   }
+
+  local function require_mutation(ok, out, label, code)
+    if ok then return end
+    local detail = trim(out or "")
+    if detail ~= "" then detail = ": " .. detail end
+    error(string.format("%s failed (exit %s)%s", label, tostring(code or "?"), detail))
+  end
 
   local order = { "add", "modify", "start", "stop", "done", "delete" }
   for _, atype in ipairs(order) do
@@ -1346,23 +1303,49 @@ function M.apply(args)
       if action.type == atype then
         local ok, err = pcall(function()
           if atype == "add" then
-            local new_uuid = M.tw_add(action.description, action.fields)
+            local new_uuid, add_ok, out, code = M.tw_add(action.description, action.fields)
+            require_mutation(add_ok, out, "task add", code)
             summary.added = summary.added + 1
-            if new_uuid ~= "" and action._post_done then
-              M.tw_done(new_uuid); summary.completed = summary.completed + 1
-            elseif new_uuid ~= "" and action._post_start then
-              M.tw_start(new_uuid)
+            summary.action_count = summary.action_count + 1
+            if action._post_done or action._post_start then
+              if new_uuid == "" then
+                error("task add succeeded but returned no UUID; cannot apply requested task state")
+              end
+              if action._post_done then
+                local state_ok, state_out, state_code = M.tw_done(new_uuid)
+                require_mutation(state_ok, state_out, "task done", state_code)
+                summary.completed = summary.completed + 1
+              else
+                local state_ok, state_out, state_code = M.tw_start(new_uuid)
+                require_mutation(state_ok, state_out, "task start", state_code)
+              end
+              summary.action_count = summary.action_count + 1
             end
           elseif atype == "modify" then
-            M.tw_modify(action.uuid, action.fields); summary.modified = summary.modified + 1
+            local changed, out, code = M.tw_modify(action.uuid, action.fields)
+            require_mutation(changed, out, "task modify", code)
+            summary.modified = summary.modified + 1
+            summary.action_count = summary.action_count + 1
           elseif atype == "start" then
-            M.tw_start(action.uuid); summary.modified = summary.modified + 1
+            local changed, out, code = M.tw_start(action.uuid)
+            require_mutation(changed, out, "task start", code)
+            summary.modified = summary.modified + 1
+            summary.action_count = summary.action_count + 1
           elseif atype == "stop" then
-            M.tw_stop(action.uuid); summary.modified = summary.modified + 1
+            local changed, out, code = M.tw_stop(action.uuid)
+            require_mutation(changed, out, "task stop", code)
+            summary.modified = summary.modified + 1
+            summary.action_count = summary.action_count + 1
           elseif atype == "done" then
-            M.tw_done(action.uuid); summary.completed = summary.completed + 1
+            local changed, out, code = M.tw_done(action.uuid)
+            require_mutation(changed, out, "task done", code)
+            summary.completed = summary.completed + 1
+            summary.action_count = summary.action_count + 1
           elseif atype == "delete" then
-            M.tw_delete(action.uuid); summary.deleted = summary.deleted + 1
+            local changed, out, code = M.tw_delete(action.uuid)
+            require_mutation(changed, out, "task delete", code)
+            summary.deleted = summary.deleted + 1
+            summary.action_count = summary.action_count + 1
           end
         end)
         if not ok then

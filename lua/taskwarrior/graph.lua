@@ -7,11 +7,6 @@
 
 local M = {}
 
-local function run(cmd)
-  local out = vim.fn.system(cmd)
-  return out, vim.v.shell_error == 0
-end
-
 -- Produce a label safe for Mermaid's `["..."]` node syntax.
 -- Mermaid's string parser is stricter than it looks: `"` inside the quoted
 -- form terminates the string unless escaped, `#` opens a comment, and line

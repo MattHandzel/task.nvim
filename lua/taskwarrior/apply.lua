@@ -1,13 +1,14 @@
 local M = {}
+local command = require("taskwarrior.command")
 
 -- Backup the Taskwarrior data directory before applying changes. Best-effort:
 -- failures are reported but do not block the apply.
 local function backup_taskdata()
   local config = require("taskwarrior.config")
   if not config.options.auto_backup then return end
-  local ok, taskdata_raw = pcall(vim.fn.system, "task _get rc.data.location 2>/dev/null")
-  if not ok then return end
-  local taskdata = tostring(taskdata_raw or ""):gsub("%s+$", "")
+  local location = command.read({ "_get", "rc.data.location" })
+  if not location.ok then return end
+  local taskdata = tostring(location.output or ""):gsub("%s+$", "")
   if taskdata == "" or vim.fn.isdirectory(taskdata) ~= 1 then return end
   local data = vim.fn.stdpath("data")
   local dest_root = data .. "/taskwarrior.nvim/backups"
@@ -20,10 +21,8 @@ local function backup_taskdata()
   vim.fn.mkdir(dest_root, "p")
   local stamp = os.date("%Y-%m-%d-%H%M%S")
   local dest = dest_root .. "/" .. stamp
-  local copy_ok, copy_err = pcall(function()
-    vim.fn.system(string.format("cp -a %s %s",
-      vim.fn.shellescape(taskdata), vim.fn.shellescape(dest)))
-  end)
+  local copy_ok, copy_err = pcall(vim.fn.system, { "cp", "-a", taskdata, dest })
+  copy_ok = copy_ok and vim.v.shell_error == 0
   if not copy_ok then
     vim.notify("taskwarrior.nvim: auto-backup failed (" .. tostring(copy_err) .. ")",
       vim.log.levels.WARN)
@@ -268,18 +267,28 @@ function M.undo(bufnr, refresh_fn)
     prompt = string.format("Undo %d action(s) from last save?", count),
   }, function(choice)
     if choice ~= "Undo" then return end
-    local failed = 0
+    local succeeded = 0
+    local failure_output
     for _ = 1, count do
-      vim.fn.system({ "task", "rc.bulk=0", "rc.confirmation=off", "undo" })
-      if vim.v.shell_error ~= 0 then failed = failed + 1 end
+      local result = command.mutate({ "undo" })
+      if not result.ok then
+        failure_output = result.output
+        break
+      end
+      succeeded = succeeded + 1
     end
-    vim.b[bufnr].task_last_action_count = nil
-    if failed > 0 then
-      vim.notify(string.format("taskwarrior.nvim: undo completed (%d failed)", failed), vim.log.levels.WARN)
+    local remaining = count - succeeded
+    vim.b[bufnr].task_last_action_count = remaining > 0 and remaining or nil
+    if remaining > 0 then
+      local msg = string.format(
+        "taskwarrior.nvim: undid %d action(s); %d still pending",
+        succeeded, remaining)
+      if failure_output and failure_output ~= "" then msg = msg .. "\n" .. failure_output end
+      vim.notify(msg, vim.log.levels.ERROR)
     else
       vim.notify(string.format("taskwarrior.nvim: undid %d action(s)", count))
     end
-    refresh_fn(bufnr)
+    if succeeded > 0 then refresh_fn(bufnr) end
   end)
 end
 
@@ -325,7 +334,9 @@ function M.do_apply_and_refresh(bufnr, tmpfile, on_delete, refresh_fn, opts)
   end
   if summary.errors and #summary.errors > 0 then
     msg = msg .. string.format(" (%d errors!)", #summary.errors)
-    vim.notify(msg, vim.log.levels.WARN)
+    local first = summary.errors[1] and summary.errors[1].error
+    if first and first ~= "" then msg = msg .. "\n" .. first end
+    vim.notify(msg, vim.log.levels.ERROR)
   elseif (summary.action_count or 0) > 0 then
     vim.notify(msg)
   end
