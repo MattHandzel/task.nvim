@@ -1209,6 +1209,37 @@ function M.setup_buf_autocmds(bufnr, on_write_fn)
     end,
   })
 
+  -- Keep the cursor off the header line. The header row is concealed away
+  -- entirely (see highlight_line), so the first task is drawn on the top
+  -- screen row — which means `gg`, `:1`, or a restored cursor position puts
+  -- you on a line you cannot see while the first task LOOKS selected.
+  -- Typing there edits the header and earns a "header is read-only"
+  -- warning that appears to come from editing the first task.
+  --
+  -- Visual mode is exempt: moving the cursor would silently reshape the
+  -- user's selection. The read-only guard below still covers that case.
+  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+    buffer = bufnr,
+    group = group,
+    callback = function()
+      if not vim.api.nvim_buf_is_valid(bufnr) then return true end
+      if vim.fn.mode():match("[vV\22]") then return end
+      local pos = vim.api.nvim_win_get_cursor(0)
+      if pos[1] ~= 1 then return end
+      local first = vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or ""
+      if not first:match("^<!%-%-.*taskmd") then return end
+      -- Only bounce if there is somewhere to bounce to: with no tasks the
+      -- header row stays visible and is the only line in the buffer.
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      for i = 2, #lines do
+        if uuid_from_line(lines[i]) or lines[i]:match("^%- %[") then
+          pcall(vim.api.nvim_win_set_cursor, 0, { i, pos[2] })
+          return
+        end
+      end
+    end,
+  })
+
   -- Protect header line: if user edits line 1 (the <!-- taskmd ... --> comment),
   -- restore it on the next TextChanged event. The cached header lives on the
   -- buffer (vim.b) so :TaskFilter/:TaskSort/:TaskRefresh can update it when

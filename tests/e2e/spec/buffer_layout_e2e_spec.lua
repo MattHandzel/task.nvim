@@ -109,6 +109,41 @@ describe("e2e task buffer layout", function()
       "header row should be removed entirely when there are tasks to show")
   end)
 
+  -- `gg`, `:1` or a restored cursor position would otherwise park the cursor
+  -- on the concealed header row, where the first task LOOKS selected but any
+  -- keystroke edits the header and trips its read-only guard. Reported as
+  -- "editing my first task warns that the header is read-only".
+  --
+  -- Driven with `doautocmd CursorMoved` rather than feedkeys: CursorMoved is
+  -- raised by the main loop's cursor check, which nvim_feedkeys() does not
+  -- reach in a headless spec. The real-keystroke path was confirmed
+  -- separately against a live child Neovim.
+  it("bounces the cursor off the header line onto the first task", function()
+    vim.cmd("enew")
+    require("taskwarrior").open("project:layoutdemo")
+    vim.wait(300, function() return false end, 10)
+
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    vim.cmd("doautocmd CursorMoved")
+
+    local row = vim.api.nvim_win_get_cursor(0)[1]
+    assert.is_true(row >= 2,
+      "cursor stayed on the concealed header row — typing there edits the header")
+    local line = vim.api.nvim_buf_get_lines(0, row - 1, row, false)[1] or ""
+    assert.is_truthy(line:match("^%- %["), "did not land on a task line: " .. line)
+  end)
+
+  it("does not bounce when the buffer has no tasks to bounce to", function()
+    vim.cmd("enew")
+    require("taskwarrior").open("project:definitely-no-such-project-here")
+    vim.wait(300, function() return false end, 10)
+
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    vim.cmd("doautocmd CursorMoved")
+    assert.are.same(1, vim.api.nvim_win_get_cursor(0)[1],
+      "with no tasks the header is the only line — nowhere to bounce")
+  end)
+
   it("cursor_to_first_task tolerates a buffer with no tasks", function()
     vim.cmd("enew")
     require("taskwarrior").open("project:definitely-no-such-project-here")
