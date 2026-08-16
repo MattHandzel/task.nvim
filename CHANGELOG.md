@@ -8,6 +8,14 @@ this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`:TwRepairTags [filter]`** — repairs the damage the hyphenated-tag bug
+  left behind. Tasks added before the fix had the literal `+foo-bar` text
+  filed into their *description* with no tag created, so they are
+  unfindable by `+foo-bar` even after the parser fix. This strips those
+  tokens out and adds the real tags. Every proposed change is shown in a
+  preview tab and confirmed before anything is written; the default scope
+  is `status:pending`, and a `+tag` written inside quotes is treated as a
+  mention and left alone.
 - **`:TwContext [name|none]`** — set or show the Taskwarrior context
   (work, home, …). Task buffers honor the active context's read filter
   and refresh when it changes. Taskwarrior 3.x applies contexts to
@@ -26,10 +34,14 @@ this project follows [Semantic Versioning](https://semver.org/).
   ellipsize instead of overflowing. Unrecognised field names are read
   straight off the exported task, so UDA columns need no extra wiring.
 - **Capture annotations** — lines below the first in the quick-capture
-  window become annotations on the created task. `<C-CR>` opens an
-  annotation line; `<CR>` still submits everything. New
+  window become annotations on the created task. `<M-CR>` or `<C-CR>`
+  opens an annotation line; `<CR>` still submits everything. New
   `capture_annotations` option (default `true`) opts out;
-  `capture_height` sizes the form.
+  `capture_height` sizes the form. The keys are configurable via
+  `capture_annotation_key` — `<C-CR>` only reaches Neovim from terminals
+  speaking the CSI-u / kitty keyboard protocol (and inside tmux only with
+  `set -g extended-keys on`), which is why the portable `<M-CR>` is bound
+  alongside it.
 - **Capture field coloring** — the quick-capture buffer now runs the task
   buffer's highlighter, so `project:`, `priority:`, `due:`, `+tags` and
   UDAs are colored as you type.
@@ -68,6 +80,14 @@ this project follows [Semantic Versioning](https://semver.org/).
 - `task context none` exits non-zero when no context is set; clearing an
   already-clear context is now treated as the no-op it is instead of
   surfacing an error.
+
+- `:TwTable` sized its columns against `vim.o.columns`, which overcounts
+  by the width of the number/sign gutter — the widest rows wrapped past
+  the right edge. Widths now come from the window's actual text area
+  (`width - textoff`), and the view re-renders on window resize.
+- The quick-capture window bound insert-mode `<C-o>` for annotation lines,
+  shadowing Vim's built-in one-shot-normal-command. Removed; see
+  `capture_annotation_key`.
 
 ### Changed
 

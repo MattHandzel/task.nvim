@@ -213,6 +213,19 @@ function M.build(tasks, opts)
   return lines, highlights, row_uuids
 end
 
+-- Usable text width of a window: its total width minus the gutter (number,
+-- sign and fold columns). `vim.o.columns` alone overcounts by the gutter,
+-- which pushed the widest rows past the right edge and wrapped them.
+local function text_width(win)
+  if win and vim.api.nvim_win_is_valid(win) then
+    local info = vim.fn.getwininfo(win)[1]
+    if info and info.width and info.textoff then
+      return math.max(20, info.width - info.textoff)
+    end
+  end
+  return vim.o.columns
+end
+
 --- :TwTable [filter] — open (or refresh) the table view.
 function M.open(filter)
   filter = (filter and filter ~= "") and filter or "status:pending"
@@ -236,10 +249,22 @@ function M.open(filter)
       return ua > ub
     end)
 
-    local lines, highlights, uuids = M.build(tasks, { filter = filter })
+    -- First pass sizes against the current window; the view may open in a
+    -- new tab whose gutter differs, so re-measure once the window exists
+    -- and re-render if the usable width actually changed.
+    local width = text_width(vim.api.nvim_get_current_win())
+    local lines, highlights, uuids = M.build(tasks, { filter = filter, width = width })
     row_uuids = uuids
     local bufnr = views._open_scratch(
       "taskwarrior.nvim Table", lines, highlights, do_render)
+
+    local view_win = vim.fn.bufwinid(bufnr)
+    local actual = text_width(view_win ~= -1 and view_win or nil)
+    if actual ~= width then
+      lines, highlights, uuids = M.build(tasks, { filter = filter, width = actual })
+      row_uuids = uuids
+      views._open_scratch("taskwarrior.nvim Table", lines, highlights, do_render)
+    end
 
     vim.keymap.set("n", "<CR>", function()
       local row = vim.api.nvim_win_get_cursor(0)[1] - 1
@@ -255,6 +280,19 @@ function M.open(filter)
 
     vim.keymap.set("n", "r", do_render, { buffer = bufnr, noremap = true,
       silent = true, desc = "taskwarrior.nvim: refresh the table view" })
+
+    -- Column widths are computed against the window, so re-render when the
+    -- window changes size. clear = true keeps this to one autocmd per buffer
+    -- no matter how many times we re-render.
+    vim.api.nvim_create_augroup("TaskwarriorTable_" .. bufnr, { clear = true })
+    vim.api.nvim_create_autocmd({ "VimResized", "WinResized" }, {
+      group = "TaskwarriorTable_" .. bufnr,
+      callback = function()
+        if not vim.api.nvim_buf_is_valid(bufnr) then return true end
+        if vim.fn.bufwinid(bufnr) == -1 then return end
+        do_render()
+      end,
+    })
 
     return bufnr
   end

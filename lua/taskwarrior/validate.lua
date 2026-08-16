@@ -10,7 +10,8 @@ local KNOWN_KEYS = {
 	"capture_key", "open_key", "filter_key", "sort_key",
 	"group_key", "project_add_key", "filters", "projects", "icons",
 	"border_style", "capture_width", "capture_height", "capture_confirm_close",
-	"capture_annotations", "field_colors", "table_columns",
+	"capture_annotations", "capture_annotation_key", "field_colors",
+	"table_columns",
 	"group_separator",
 	"animation", "clamp_cursor", "day_start_hour", "urgency_coefficients",
 	"urgency_value_mappers", "custom_urgency", "auto_backup", "auto_backup_keep",
@@ -282,6 +283,30 @@ function M.validate(opts)
 					0
 				)
 			end
+		end
+	end
+
+	-- 8d. capture_annotation_key — string, list of strings, or false.
+	if opts.capture_annotation_key ~= nil and opts.capture_annotation_key ~= false then
+		local v = opts.capture_annotation_key
+		if type(v) == "table" then
+			for i, k in ipairs(v) do
+				if type(k) ~= "string" then
+					error(
+						("taskwarrior.nvim: capture_annotation_key[%d] must be a string, got %s"):format(
+							i, type(k)
+						),
+						0
+					)
+				end
+			end
+		elseif type(v) ~= "string" then
+			error(
+				("taskwarrior.nvim: capture_annotation_key must be a string, list, or false, got %s"):format(
+					type(v)
+				),
+				0
+			)
 		end
 	end
 

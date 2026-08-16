@@ -91,10 +91,91 @@ function M.show()
   notify("view", table.concat(lines, "\n"))
 end
 
+--- Define a context. `filter` is a Taskwarrior filter expression; when
+--- omitted the user is prompted for it. Prompts for the name too when nil.
+function M.define(name, filter)
+  local function do_define(n, f)
+    n, f = vim.trim(n or ""), vim.trim(f or "")
+    if n == "" or f == "" then return end
+    if n == "none" then
+      notify("error", "taskwarrior.nvim: 'none' is reserved — pick another name",
+        vim.log.levels.ERROR)
+      return
+    end
+    local args = { "context", "define", n }
+    -- The filter is one CLI argument per token, same as any other filter.
+    local parsed = command.parse_args(f)
+    if not parsed then
+      notify("error", "taskwarrior.nvim: unparseable context filter",
+        vim.log.levels.ERROR)
+      return
+    end
+    vim.list_extend(args, parsed)
+    local result = command.mutate(args)
+    if not result.ok then
+      notify("error", "taskwarrior.nvim: context define failed\n" .. (result.output or ""),
+        vim.log.levels.ERROR)
+      return
+    end
+    notify("view", ("taskwarrior.nvim: context %s defined (%s)"):format(n, f))
+    -- Offer to switch to it right away — defining one you don't then use is
+    -- almost never what you meant.
+    vim.ui.select({ "Activate now", "Leave inactive" }, {
+      prompt = ("Activate context %s?"):format(n),
+    }, function(choice)
+      if choice == "Activate now" then M.set(n) end
+    end)
+  end
+
+  if name == nil or vim.trim(name) == "" then
+    vim.ui.input({ prompt = "Context name: " }, function(n)
+      if not n or vim.trim(n) == "" then return end
+      vim.ui.input({ prompt = "Filter (e.g. project:work or +work): " }, function(f)
+        do_define(n, f)
+      end)
+    end)
+    return
+  end
+  if filter == nil or vim.trim(filter) == "" then
+    vim.ui.input({ prompt = ("Filter for context %s: "):format(name) }, function(f)
+      do_define(name, f)
+    end)
+    return
+  end
+  do_define(name, filter)
+end
+
+--- Delete a context definition (prompts to pick one when name is omitted).
+function M.delete(name)
+  local function do_delete(n)
+    local result = command.mutate({ "context", "delete", n })
+    if not result.ok then
+      notify("error", "taskwarrior.nvim: context delete failed\n" .. (result.output or ""),
+        vim.log.levels.ERROR)
+      return
+    end
+    notify("view", ("taskwarrior.nvim: context %s deleted"):format(n))
+    refresh_all_task_buffers()
+  end
+
+  if name and vim.trim(name) ~= "" then return do_delete(vim.trim(name)) end
+  local names = M.list()
+  if #names == 0 then
+    notify("warn", "taskwarrior.nvim: no contexts defined", vim.log.levels.WARN)
+    return
+  end
+  vim.ui.select(names, { prompt = "Delete which context?" }, function(choice)
+    if choice then do_delete(choice) end
+  end)
+end
+
 -- Set (or clear, with "none") the context, then refresh open task buffers.
+-- Bare `:TwContext` clears — the common case is "get me out of this
+-- context"; use `:TwContext show` for the read-only summary.
 function M.set(name)
   name = vim.trim(name or "")
-  if name == "" then return M.show() end
+  if name == "" then name = "none" end
+  if name == "show" then return M.show() end
   -- `task context none` exits 2 when no context was set ("Context not
   -- unset.") — clearing an already-clear context is a no-op, not an error.
   local ok_codes = name == "none" and { 0, 1, 2 } or nil

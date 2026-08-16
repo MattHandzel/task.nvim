@@ -245,16 +245,39 @@ Visualisation commands. See |taskwarrior-views| and |taskwarrior-table|.
                         error reporting. Offers a retry on failure.
 
                                                              *:TwContext*
-:TwContext [name]     Show or set the Taskwarrior context. With no
-                        argument, shows the active context and lists the
-                        defined ones. With a name (e.g. `work`), activates
-                        that context — task buffers refresh and honor its
-                        read filter (TW 3.x does not apply contexts to
-                        `export`, so the plugin injects the filter itself).
-                        `:TwContext none` clears it. Filters that target a
-                        specific `uuid:` are never context-narrowed.
-                        Define contexts in the CLI:
-                        `task context define work project:work`
+:TwContext            Clear the active context (same as `none`).
+:TwContext {name}     Activate that context. Task buffers refresh and
+                        honor its read filter — TW 3.x does not apply
+                        contexts to `export`, so the plugin injects the
+                        filter itself. Filters targeting a specific
+                        `uuid:` are never context-narrowed.
+:TwContext show       Show the active context and list defined ones.
+:TwContext define [name] [filter]
+                      Define a context, e.g.
+                        :TwContext define work project:work
+                        :TwContext define deep +focus or priority:H
+                      Prompts for anything you leave out, then offers to
+                        activate it.
+:TwContext delete [name]
+                      Delete a context definition (prompts with a picker
+                        when the name is omitted).
+
+                                                          *:TwRepairTags*
+:TwRepairTags [filter]
+                      Repair tasks whose `+tag` text ended up inside the
+                        description. Taskwarrior 3 parses the hyphen in a
+                        bare `+foo-bar` token as subtraction, so tasks
+                        added before this was fixed had the literal text
+                        filed into the description and the tag never
+                        created — making them unfindable by `+foo-bar`.
+                        This strips those tokens out of the description
+                        and adds the real tags.
+
+                        Shows every proposed change in a preview tab and
+                        asks before writing anything. Defaults to
+                        `status:pending`; pass a filter to widen the scope
+                        (e.g. `status:completed`). A `+tag` written inside
+                        quotes is treated as a mention and left alone.
 
                                                                *:TwFloat*
 :TwFloat [filter]     Open the task buffer in a centered floating window

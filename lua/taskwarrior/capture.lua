@@ -214,8 +214,16 @@ function M.open(refresh_fn)
     return ""
   end, { buffer = buf, expr = true })
 
-  -- <C-CR> / <C-o> open a new line below for an annotation without
-  -- submitting — <CR> stays "submit everything" from any line.
+  -- Open a new line below for an annotation without submitting — <CR> stays
+  -- "submit everything" from any line.
+  --
+  -- Key choice matters more than it looks: <C-CR> only reaches Neovim from
+  -- terminals that speak the CSI-u / kitty keyboard protocol, and inside
+  -- tmux only with `set -g extended-keys on`. Everywhere else it arrives
+  -- indistinguishable from a plain <CR> and would silently submit. <M-CR>
+  -- is sent as ESC-prefixed CR by virtually every terminal, so it is the
+  -- portable default; both are bound by default and
+  -- capture_annotation_key overrides the whole set.
   local function open_annotation_line()
     local last = vim.api.nvim_buf_line_count(buf)
     vim.api.nvim_buf_set_lines(buf, last, last, false, { "" })
@@ -224,8 +232,17 @@ function M.open(refresh_fn)
     end
     vim.cmd("startinsert!")
   end
-  vim.keymap.set("i", "<C-CR>", open_annotation_line, { buffer = buf })
-  vim.keymap.set("i", "<C-o>", open_annotation_line, { buffer = buf })
+  local anno_keys = config.options.capture_annotation_key
+  if anno_keys == nil then anno_keys = { "<M-CR>", "<C-CR>" } end
+  if type(anno_keys) == "string" then anno_keys = { anno_keys } end
+  for _, key in ipairs(anno_keys) do
+    if key ~= "" then
+      vim.keymap.set("i", key, open_annotation_line, {
+        buffer = buf,
+        desc = "taskwarrior.nvim: new annotation line",
+      })
+    end
+  end
 
   vim.keymap.set("i", "<Esc>", close_with_confirm, { buffer = buf })
   vim.keymap.set("n", "<Esc>", close_with_confirm, { buffer = buf })

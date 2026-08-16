@@ -50,6 +50,17 @@ M.defaults = {
 	-- Turn the capture window's extra lines into annotations. Set false to
 	-- ignore everything below line 1.
 	capture_annotations = true,
+	-- Insert-mode key(s) that open a new annotation line in the capture
+	-- window without submitting. String or list of strings; false/"" disables.
+	-- Default binds both <M-CR> and <C-CR>.
+	--
+	-- <C-CR> only reaches Neovim from terminals speaking the CSI-u / kitty
+	-- keyboard protocol — and inside tmux only with `set -g extended-keys on`
+	-- (plus `set -as terminal-features '*:extkeys'`). Without that it arrives
+	-- as a plain <CR> and submits. <M-CR> (Alt+Enter) is sent as an
+	-- ESC-prefixed CR by virtually every terminal, which is why it's in the
+	-- default set.
+	capture_annotation_key = nil,
 	-- When the quick-capture window has unsubmitted text and the user presses
 	-- <Esc>, ask before discarding instead of closing silently. Set to false
 	-- to restore the pre-1.4 always-close behavior.

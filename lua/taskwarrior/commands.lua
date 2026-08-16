@@ -201,6 +201,16 @@ function M.setup(main, complete_filter)
     views.tags()
   end, { nargs = 0, desc = "Show tag distribution" })
 
+  -- Repair tasks whose `+tag` text ended up in the description (the
+  -- hyphenated-tag misparse). Previews every change before writing.
+  register("RepairTags", function(o)
+    require("taskwarrior.repair_tags").run(o.args)
+  end, {
+    nargs = "*",
+    desc = "Move +tag text stuck in descriptions back into real tags (previews first)",
+    complete = function(arg_lead) return complete_filter(arg_lead) end,
+  })
+
   register("Table", function(o)
     require("taskwarrior.table_view").open(o.args)
   end, {
@@ -291,18 +301,42 @@ function M.setup(main, complete_filter)
     main.sync()
   end, { nargs = 0, desc = "Run `task sync` with progress and error handling" })
 
-  -- Taskwarrior contexts (work, home, …). No args shows the active context
-  -- and the available ones; a name sets it; "none" clears it.
+  -- Taskwarrior contexts (work, home, …).
+  --   :TwContext                      clear the active context
+  --   :TwContext <name>               activate it
+  --   :TwContext show                 active context + the defined ones
+  --   :TwContext define [name] [filter]  create one (prompts for anything
+  --                                      not supplied)
+  --   :TwContext delete [name]        remove a definition (prompts if omitted)
   register("Context", function(o)
-    main.context(o.args)
+    local ctx = require("taskwarrior.context")
+    local sub, rest = o.args:match("^(%S+)%s*(.*)$")
+    if sub == "define" then
+      local name, filter = rest:match("^(%S+)%s*(.*)$")
+      ctx.define(name, filter)
+    elseif sub == "delete" then
+      ctx.delete(rest)
+    else
+      main.context(o.args)
+    end
   end, {
-    nargs = "?",
-    desc = "Show or set the Taskwarrior context (name or 'none')",
-    complete = function(arg_lead)
+    nargs = "*",
+    desc = "Taskwarrior context: bare = clear, <name> = activate, show/define/delete",
+    complete = function(arg_lead, cmd_line)
+      -- After `define`/`delete`, complete context names rather than verbs.
+      local words = vim.split(cmd_line or "", "%s+")
+      local sub = words[2]
       local names = require("taskwarrior.context").list()
-      table.insert(names, "none")
+      local candidates
+      if sub == "delete" and #words > 2 then
+        candidates = names
+      elseif sub == "define" or (sub == "delete" and #words > 3) then
+        candidates = {}
+      else
+        candidates = vim.list_extend({ "none", "show", "define", "delete" }, names)
+      end
       local out = {}
-      for _, n in ipairs(names) do
+      for _, n in ipairs(candidates) do
         if n:sub(1, #arg_lead) == arg_lead then table.insert(out, n) end
       end
       return out

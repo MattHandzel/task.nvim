@@ -113,4 +113,50 @@ describe("e2e Taskwarrior contexts (tw c12b4cbd)", function()
     vim.wait(200, function() return context.current() == nil end, 10)
     assert.is_nil(context.current())
   end)
+
+  it("bare :TwContext clears the active context", function()
+    local prefix = require("taskwarrior.config").options.command_prefix or "Tw"
+    context.set("ctxwork")
+    assert.are.same("ctxwork", context.current())
+    vim.cmd(prefix .. "Context")
+    vim.wait(500, function() return context.current() == nil end, 10)
+    assert.is_nil(context.current(), "bare :TwContext did not clear the context")
+  end)
+
+  it("define creates a context and delete removes it", function()
+    local name = ("ctxmade%d"):format(math.random(1, 1e6))
+    -- define offers to activate; decline so this test only checks definition.
+    local orig_select = vim.ui.select
+    vim.ui.select = function(_, _, cb) cb("Leave inactive") end
+    context.define(name, "project:ctxdemo or +ctx-hyphen-tag")
+    vim.wait(2000, function()
+      return context.read_filter(name) ~= nil
+    end, 20)
+    vim.ui.select = orig_select
+
+    assert.are.same("project:ctxdemo or +ctx-hyphen-tag", context.read_filter(name),
+      "context filter was not stored verbatim")
+    local names = context.list()
+    assert.is_true(vim.tbl_contains(names, name),
+      "defined context missing from list: " .. vim.inspect(names))
+
+    -- It actually works as a context.
+    context.set(name)
+    assert.are.same(name, context.current())
+    context.set("none")
+
+    context.delete(name)
+    vim.wait(2000, function() return context.read_filter(name) == nil end, 20)
+    assert.is_nil(context.read_filter(name), "context was not deleted")
+    assert.is_false(vim.tbl_contains(context.list(), name),
+      "deleted context still listed")
+  end)
+
+  it("define refuses the reserved name 'none'", function()
+    local before = context.list()
+    context.define("none", "project:whatever")
+    vim.wait(300, function() return false end, 10)
+    assert.are.same(#before, #context.list(),
+      "defining a context named 'none' should be refused")
+  end)
 end)

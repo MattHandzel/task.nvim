@@ -163,7 +163,8 @@ These are bundled but require their own host plugins.
 | `:TwStart` / `:TwStop`                                         | Start / stop active timer on task under cursor                                                                |
 | `:TwSave <name>` / `:TwLoad [name]`                            | Save / restore the current filter+sort+group as a named view                                                  |
 | `:TwReview`                                                    | Guided urgency walk through pending tasks                                                                     |
-| `:TwContext [name\|none]`                                      | Show or set the Taskwarrior context (task buffers honor its read filter)                                      |
+| `:TwContext [name\|show\|define\|delete]`                      | Taskwarrior context: bare clears it, `<name>` activates, `define`/`delete` manage them                        |
+| `:TwRepairTags [filter]`                                       | Move `+tag` text stuck in descriptions back into real tags (previews every change first)                      |
 | `:TwDelegate [copy\|copy-command]`                             | Delegate task(s) to Claude in a popup form                                                                    |
 | `:TwDiffPreview [on\|off\|toggle]`                             | Toggle live virt-text diff preview                                                                            |
 | `:TwBurndown`                                                  | Pending-task burndown chart                                                                                   |
@@ -235,6 +236,13 @@ require("taskwarrior").setup({
   capture_height = 3,          -- quick-capture height in lines; line 1 is the
                                -- task, lines below it become annotations
   capture_annotations = true,  -- false = ignore everything below line 1
+  capture_annotation_key = nil,-- insert-mode key(s) opening an annotation
+                               -- line. Default binds <M-CR> and <C-CR>.
+                               -- <C-CR> only reaches Neovim from terminals
+                               -- speaking CSI-u (in tmux you also need
+                               -- `set -g extended-keys on`); <M-CR> works
+                               -- almost everywhere, which is why both are
+                               -- bound by default
   table_columns = nil,         -- :TwTable columns; nil = built-in defaults.
                                -- Entries are field names or tables:
                                -- { field, label, width, align, format }.
