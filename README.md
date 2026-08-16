@@ -164,7 +164,6 @@ These are bundled but require their own host plugins.
 | `:TwSave <name>` / `:TwLoad [name]`                            | Save / restore the current filter+sort+group as a named view                                                  |
 | `:TwReview`                                                    | Guided urgency walk through pending tasks                                                                     |
 | `:TwContext [name\|show\|define\|delete]`                      | Taskwarrior context: bare clears it, `<name>` activates, `define`/`delete` manage them                        |
-| `:TwRepairTags [filter]`                                       | Move `+tag` text stuck in descriptions back into real tags (previews every change first)                      |
 | `:TwDelegate [copy\|copy-command]`                             | Delegate task(s) to Claude in a popup form                                                                    |
 | `:TwDiffPreview [on\|off\|toggle]`                             | Toggle live virt-text diff preview                                                                            |
 | `:TwBurndown`                                                  | Pending-task burndown chart                                                                                   |
@@ -308,6 +307,17 @@ Run `:checkhealth taskwarrior` to verify your setup (Neovim version, Taskwarrior
 `:w` issues real `task modify` / `task done` / `task add` / `task delete` commands against your Taskwarrior database. There is no staging.
 
 By default (`auto_backup = true`), the plugin copies your Taskwarrior data directory to `stdpath("data")/taskwarrior.nvim/backups/<timestamp>/` immediately before any apply. The ten newest backups are kept; older ones are pruned. Disable with `auto_backup = false` in `setup()`.
+
+### One-time tag repair
+
+Taskwarrior 3 parses the hyphen in a bare `+foo-bar` token as a subtraction operator. Tasks added before this was fixed had the literal `+foo-bar` text filed into their **description** with no tag ever created — so they stay invisible to `+foo-bar` even after upgrading. If that happened to you, run the repair once:
+
+```vim
+:lua require("taskwarrior.repair_tags").run()              " pending tasks
+:lua require("taskwarrior.repair_tags").run("status:completed")
+```
+
+It shows every proposed change in a preview tab and asks before writing anything. A `+tag` written inside quotes is treated as a mention and left alone. There is deliberately no `:Tw*` command for this — you run it once, not daily.
 
 ## Help
 

@@ -262,22 +262,25 @@ Visualisation commands. See |taskwarrior-views| and |taskwarrior-table|.
                       Delete a context definition (prompts with a picker
                         when the name is omitted).
 
-                                                          *:TwRepairTags*
-:TwRepairTags [filter]
-                      Repair tasks whose `+tag` text ended up inside the
-                        description. Taskwarrior 3 parses the hyphen in a
-                        bare `+foo-bar` token as subtraction, so tasks
-                        added before this was fixed had the literal text
-                        filed into the description and the tag never
-                        created — making them unfindable by `+foo-bar`.
-                        This strips those tokens out of the description
-                        and adds the real tags.
+                                                     *taskwarrior-repair*
+One-time tag repair ~
 
-                        Shows every proposed change in a preview tab and
-                        asks before writing anything. Defaults to
-                        `status:pending`; pass a filter to widen the scope
-                        (e.g. `status:completed`). A `+tag` written inside
-                        quotes is treated as a mention and left alone.
+Taskwarrior 3 parses the hyphen in a bare `+foo-bar` token as a
+subtraction operator, so tasks added before this was fixed had the
+literal text filed into their DESCRIPTION and the tag was never created
+— leaving them unfindable by `+foo-bar` even after upgrading. To move
+those tokens back into real tags: >
+
+    :lua require("taskwarrior.repair_tags").run()
+    :lua require("taskwarrior.repair_tags").run("status:completed")
+<
+Every proposed change is shown in a preview tab and confirmed before
+anything is written. The default scope is `status:pending`; pass a
+filter to widen it. A `+tag` written inside quotes is treated as a
+mention (someone describing a tag) and left alone.
+
+There is deliberately no `:Tw` command for this — it is run once, not
+routinely, and would otherwise sit in the command list forever.
 
                                                                *:TwFloat*
 :TwFloat [filter]     Open the task buffer in a centered floating window

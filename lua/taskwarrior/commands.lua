@@ -201,15 +201,11 @@ function M.setup(main, complete_filter)
     views.tags()
   end, { nargs = 0, desc = "Show tag distribution" })
 
-  -- Repair tasks whose `+tag` text ended up in the description (the
-  -- hyphenated-tag misparse). Previews every change before writing.
-  register("RepairTags", function(o)
-    require("taskwarrior.repair_tags").run(o.args)
-  end, {
-    nargs = "*",
-    desc = "Move +tag text stuck in descriptions back into real tags (previews first)",
-    complete = function(arg_lead) return complete_filter(arg_lead) end,
-  })
+  -- NOTE: the one-time tag repair (taskwarrior.repair_tags) is deliberately
+  -- NOT registered here. It is run once, ever, to clean up damage from the
+  -- TW3 hyphen misparse; a permanent :Tw* slot would clutter the command
+  -- list for every user forever. Invoke it explicitly:
+  --   :lua require("taskwarrior.repair_tags").run()
 
   register("Table", function(o)
     require("taskwarrior.table_view").open(o.args)

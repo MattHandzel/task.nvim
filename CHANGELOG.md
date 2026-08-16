@@ -8,14 +8,16 @@ this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **`:TwRepairTags [filter]`** — repairs the damage the hyphenated-tag bug
-  left behind. Tasks added before the fix had the literal `+foo-bar` text
-  filed into their *description* with no tag created, so they are
-  unfindable by `+foo-bar` even after the parser fix. This strips those
-  tokens out and adds the real tags. Every proposed change is shown in a
-  preview tab and confirmed before anything is written; the default scope
-  is `status:pending`, and a `+tag` written inside quotes is treated as a
-  mention and left alone.
+- **One-time tag repair** —
+  `:lua require("taskwarrior.repair_tags").run()` repairs the damage the
+  hyphenated-tag bug left behind. Tasks added before the fix had the
+  literal `+foo-bar` text filed into their *description* with no tag
+  created, so they stay unfindable by `+foo-bar` even after the parser
+  fix. This strips those tokens out and adds the real tags. Every
+  proposed change is shown in a preview tab and confirmed before anything
+  is written; the default scope is `status:pending`, and a `+tag` written
+  inside quotes is treated as a mention and left alone. Intentionally not
+  a `:Tw*` command — it is run once, not routinely.
 - **`:TwContext [name|none]`** — set or show the Taskwarrior context
   (work, home, …). Task buffers honor the active context's read filter
   and refresh when it changes. Taskwarrior 3.x applies contexts to

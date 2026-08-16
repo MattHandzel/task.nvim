@@ -1,4 +1,9 @@
--- taskwarrior/repair_tags.lua — :TwRepairTags.
+-- taskwarrior/repair_tags.lua — one-time tag repair.
+--
+-- Deliberately NOT a :Tw* command: you run this once, ever, and a permanent
+-- command slot would clutter the list for every user. Invoke it directly:
+--   :lua require("taskwarrior.repair_tags").run()
+--   :lua require("taskwarrior.repair_tags").run("status:completed")
 --
 -- Repairs the damage left by the hyphenated-tag bug: Taskwarrior 3 parses
 -- the hyphen in a bare `+foo-bar` token as a subtraction operator, so
@@ -132,7 +137,7 @@ local function apply(plans)
   return ok_count, failures
 end
 
---- :TwRepairTags [filter] — preview, confirm, then repair.
+--- Preview, confirm, then repair. `filter` defaults to pending tasks.
 function M.run(filter)
   filter = (filter and filter ~= "") and filter or "status:pending"
   local plans = M.scan(filter)
