@@ -87,6 +87,16 @@ function M.open(refresh_fn)
     end)
   end
 
+  -- Echo the start of what was actually stored so the user can confirm the
+  -- right task went through (tw 978fb9d1) — "added task" alone doesn't tell
+  -- you whether your fields parsed or the text was mangled.
+  local function snippet(text, max)
+    max = max or 40
+    text = vim.trim(text or "")
+    if vim.fn.strchars(text) <= max then return text end
+    return vim.fn.strcharpart(text, 0, max) .. "…"
+  end
+
   local function submit(line)
     if not line or line == "" then return end
 
@@ -107,7 +117,7 @@ function M.open(refresh_fn)
       if desc and desc ~= "" then
         local new_uuid, add_ok = tm.tw_add(desc, fields)
         if new_uuid and new_uuid ~= "" then
-          vim.notify("taskwarrior.nvim: added task")
+          vim.notify(('taskwarrior.nvim: added "%s"'):format(snippet(desc)))
         elseif add_ok then
           vim.notify(
             "taskwarrior.nvim: added task, but Taskwarrior did not report its UUID; not retrying",
@@ -126,7 +136,7 @@ function M.open(refresh_fn)
     -- their typed content.
     local result = command.mutate({ "add", "--", line })
     if result.ok then
-      vim.notify("taskwarrior.nvim: added task (unparsed)")
+      vim.notify(('taskwarrior.nvim: added (unparsed) "%s"'):format(snippet(line)))
       refresh_fn()
     else
       vim.notify("taskwarrior.nvim: add failed", vim.log.levels.ERROR)
