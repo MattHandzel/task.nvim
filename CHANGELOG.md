@@ -56,8 +56,31 @@ this project follows [Semantic Versioning](https://semver.org/).
   the stored description (plus an annotation count), so you can tell at a
   glance that the right task went through and its fields parsed.
 
+- **Pickers for every finite choice.** Anything with a small known answer
+  set is now chosen from a list instead of typed from memory: sort order
+  (`<leader>ts`), grouping (`<leader>tg`), context (`<leader>tc`, new),
+  saved views (`<leader>tv`, new) and reports (`<leader>tr`, new). The
+  active value is marked in the list, and the context/report pickers show
+  each entry's filter so you can tell them apart. Built on `vim.ui.select`,
+  so fuzzy matching comes from whatever picker you already use
+  (dressing/telescope, snacks, fzf-lua) and it degrades to Neovim's
+  built-in list otherwise. Bare `:TwSort` now opens the picker instead of
+  erroring. New `context_key` / `view_key` / `report_key` options, each
+  disablable with `false`.
+
 ### Fixed
 
+- **Sorting by a field only some tasks have** (`:TwSort priority-`,
+  `due+`, `project-`) raised `attempt to compare two boolean values` and
+  failed the whole render. The comparator compared two "is this side
+  missing?" booleans with `<`, which Lua rejects. Missing values now sort
+  last in both directions.
+- **Priority sorted alphabetically rather than by importance**, so
+  `priority-` — which reads as "most important first", like `urgency-`
+  beside it — listed `L` above `H`. Priority is now ranked H > M > L.
+- `:TwLoad` with no argument silently did nothing instead of offering the
+  saved-view picker: the command passes `""`, which is truthy in Lua, so
+  it fell through to the "load view named ''" path.
 - **Hyphenated tag names** (`+ais-research-taste` and friends).
   Taskwarrior 3's expression parser reads the hyphen in a bare `+tag`
   token as a subtraction operator, which broke three separate paths:

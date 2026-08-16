@@ -1166,11 +1166,26 @@ function M.render(args)
 
   local descending = sort_spec:sub(-1) == "-"
   local sort_field = sort_spec:gsub("[+-]$", "")
+  -- Priority is ordinal, not alphabetical: comparing the letters put "L"
+  -- above "H" descending, so `priority-` listed the LEAST important tasks
+  -- first — the opposite of what the spec means (and of `urgency-` beside
+  -- it). Rank them so the numeric branch below does the right thing.
+  local PRIORITY_RANK = { H = 3, M = 2, L = 1 }
+  local function sort_value(task)
+    local v = task[sort_field]
+    if sort_field == "priority" and type(v) == "string" then
+      return PRIORITY_RANK[v:upper()]
+    end
+    return v
+  end
   table.sort(tasks, function(a, b)
-    local va, vb = a[sort_field], b[sort_field]
+    local va, vb = sort_value(a), sort_value(b)
     local ma, mb = va == nil, vb == nil
     if ma and mb then return false end
-    if ma ~= mb then return ma < mb end  -- missing sorts last (ma=true → larger)
+    -- Exactly one side is missing → it sorts last, regardless of direction.
+    -- (`ma < mb` was a boolean comparison, which Lua rejects outright: any
+    -- sort on a field some tasks lack — priority, due, project — errored.)
+    if ma ~= mb then return mb end
     if type(va) == "number" and type(vb) == "number" then
       if descending then return va > vb else return va < vb end
     end

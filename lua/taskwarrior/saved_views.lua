@@ -92,7 +92,9 @@ function M.load(name, open_fn, refresh_fn)
     end
     vim.notify(string.format("taskwarrior.nvim: loaded view %q", chosen))
   end
-  if name then
+  -- `:TwLoad` with no argument passes "" (truthy in Lua), which used to fall
+  -- into finish("") and silently do nothing. Empty means "ask me".
+  if name and name ~= "" then
     finish(name)
   else
     local names = M.list_names()
@@ -100,7 +102,7 @@ function M.load(name, open_fn, refresh_fn)
       vim.notify("taskwarrior.nvim: no saved views", vim.log.levels.WARN)
       return
     end
-    vim.ui.select(names, { prompt = "Load view:" }, finish)
+    require("taskwarrior.pick").select(names, { prompt = "Load view:" }, finish)
   end
 end
 

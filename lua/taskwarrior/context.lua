@@ -91,6 +91,30 @@ function M.show()
   notify("view", table.concat(lines, "\n"))
 end
 
+--- Fuzzy-pick a context to activate. Lists every defined context with its
+--- read filter, marks the active one, and offers "none" to clear plus a
+--- "define new" escape hatch so an empty context list is not a dead end.
+function M.pick()
+  local names = M.list()
+  local current = M.current()
+  local entries = { { value = "none", label = "none      (clear context)" } }
+  for _, name in ipairs(names) do
+    entries[#entries + 1] = {
+      value = name,
+      label = ("%-10s%s"):format(name, M.read_filter(name) or ""),
+    }
+  end
+  entries[#entries + 1] = { value = "\0define", label = "+ define a new context…" }
+
+  require("taskwarrior.pick").select(entries, {
+    prompt = "Context:",
+    current = current or "none",
+  }, function(value)
+    if value == "\0define" then return M.define() end
+    M.set(value)
+  end)
+end
+
 --- Define a context. `filter` is a Taskwarrior filter expression; when
 --- omitted the user is prompted for it. Prompts for the name too when nil.
 function M.define(name, filter)

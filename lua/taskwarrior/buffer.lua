@@ -1061,33 +1061,31 @@ function M.setup_buf_keymaps(bufnr)
     end, { buffer = bufnr, noremap = true, silent = true, desc = "taskwarrior.nvim: Change filter" })
   end
 
-  -- Buffer-local sort key
+  -- Buffer-local sort key. Finite set → picker, not a free-text prompt.
   if config2.options.sort_key then
     vim.keymap.set("n", config2.options.sort_key, function()
-      local ok, input = pcall(vim.fn.input, {
-        prompt = "Sort: ",
-        default = vim.b[bufnr].task_sort or "urgency-",
-        completion = "customlist,v:lua.require'taskwarrior'._complete_sort",
-      })
-      if not ok or input == nil then return end
-      vim.b[bufnr].task_sort = input
-      M.refresh_buf(bufnr)
-      vim.notify("taskwarrior.nvim: sort → " .. input)
+      require("taskwarrior.pick").select(
+        require("taskwarrior.choices").SORTS,
+        { prompt = "Sort by:", current = vim.b[bufnr].task_sort or "urgency-" },
+        function(value)
+          vim.b[bufnr].task_sort = value
+          M.refresh_buf(bufnr)
+          vim.notify("taskwarrior.nvim: sort → " .. value)
+        end)
     end, { buffer = bufnr, noremap = true, silent = true, desc = "taskwarrior.nvim: Change sort" })
   end
 
-  -- Buffer-local group key
+  -- Buffer-local group key.
   if config2.options.group_key then
     vim.keymap.set("n", config2.options.group_key, function()
-      local ok, input = pcall(vim.fn.input, {
-        prompt = "Group by (empty=none): ",
-        default = vim.b[bufnr].task_group or "",
-        completion = "customlist,v:lua.require'taskwarrior'._complete_group",
-      })
-      if not ok or input == nil then return end
-      vim.b[bufnr].task_group = (input ~= "" and input ~= "none") and input or nil
-      M.refresh_buf(bufnr)
-      vim.notify("taskwarrior.nvim: group → " .. (input ~= "" and input or "(none)"))
+      require("taskwarrior.pick").select(
+        require("taskwarrior.choices").GROUPS,
+        { prompt = "Group by:", current = vim.b[bufnr].task_group or "none" },
+        function(value)
+          vim.b[bufnr].task_group = (value ~= "none") and value or nil
+          M.refresh_buf(bufnr)
+          vim.notify("taskwarrior.nvim: group → " .. value)
+        end)
     end, { buffer = bufnr, noremap = true, silent = true, desc = "taskwarrior.nvim: Change grouping" })
   end
 

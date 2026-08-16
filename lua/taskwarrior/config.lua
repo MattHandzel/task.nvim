@@ -31,6 +31,12 @@ M.defaults = {
 	sort_key = "<leader>ts", -- buffer-local keybind to change sort (nil to disable)
 	group_key = "<leader>tg", -- buffer-local keybind to change grouping (nil to disable)
 	project_add_key = "<leader>tpa", -- global keybind to register cwd as a project (nil to disable)
+	-- Global keybinds that open a picker over a finite set. All use
+	-- vim.ui.select, so they inherit whatever picker (and fuzzy matching)
+	-- you already use. Set any to nil/false to disable.
+	context_key = "<leader>tc", -- pick the Taskwarrior context
+	view_key = "<leader>tv",    -- pick a saved view
+	report_key = "<leader>tr",  -- pick a named report
 	filters = {}, -- named filter presets: { { key = "<key>", filter = "filter_str", label = "label" }, ... }
 	projects = {}, -- directory-to-project mapping: { ["/path/to/dir"] = "project_name", ... }
 	-- Icon mode. Auto-detects nerd-font availability via `vim.g.have_nerd_font`

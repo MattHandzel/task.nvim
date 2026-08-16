@@ -381,9 +381,34 @@ Buffer-local (inside a task buffer): ~
     <<                  Prepend to description (|:TwPrepend|).
     yt                  Duplicate task (|:TwDuplicate|).
     dD                  Purge task (irreversible, confirms).
-    <leader>tf          Change filter interactively.
-    <leader>ts          Change sort interactively.
-    <leader>tg          Change grouping interactively.
+    <leader>tf          Change filter (free text, <Tab> completes).
+    <leader>ts          Pick sort order.
+    <leader>tg          Pick grouping.
+
+Global (work from any buffer):
+
+    <leader>tt          Open the task buffer.
+    <leader>ta          Quick-capture a task.
+    <leader>tc          Pick the Taskwarrior context.
+    <leader>tv          Pick a saved view.
+    <leader>tr          Pick a named report.
+    <leader>tpa         Register cwd as a project.
+    <leader>tF          Report a bug (|:TwFeedback|).
+
+                                                      *taskwarrior-pickers*
+Anything with a small, known set of answers is chosen from a list rather
+than typed: sort order, grouping, context, saved views and reports. The
+active value is marked with `●`, and the context and report pickers show
+each entry's filter alongside its name.
+
+These use |vim.ui.select|, so they render through whichever picker you
+have configured — dressing.nvim/telescope, snacks, fzf-lua — and inherit
+its fuzzy matching. With no such plugin installed you get Neovim's
+built-in numbered list.
+
+The filter prompt is deliberately NOT a picker: a Taskwarrior filter is
+open-ended, so it stays free text with <Tab> completion over your real
+projects, tags and fields.
 
 ==============================================================================
 7. SYNTAX                                                    *taskwarrior-syntax*
@@ -422,6 +447,9 @@ Full schema with defaults: >
       sort_key          = "<leader>ts",
       group_key         = "<leader>tg",
       project_add_key   = "<leader>tpa",
+      context_key       = "<leader>tc",  -- pick a context
+      view_key          = "<leader>tv",  -- pick a saved view
+      report_key        = "<leader>tr",  -- pick a named report
       filters           = {},
       projects          = {},
       icons             = true,

@@ -223,22 +223,13 @@ function M._complete_modify(_arg_lead, cmd_line, _cursor_pos)
 end
 
 function M._complete_sort(arg_lead, _cmd_line, _cursor_pos)
-  local fields = { "urgency-", "urgency+", "due+", "due-", "priority-",
-                   "priority+", "project+", "project-", "description+" }
-  local results = {}
-  for _, f in ipairs(fields) do
-    if f:sub(1, #arg_lead) == arg_lead then table.insert(results, f) end
-  end
-  return results
+  local choices = require("taskwarrior.choices")
+  return choices.complete(choices.SORTS, arg_lead)
 end
 
 function M._complete_group(arg_lead, _cmd_line, _cursor_pos)
-  local fields = { "project", "priority", "status", "tag", "none" }
-  local results = {}
-  for _, f in ipairs(fields) do
-    if f:sub(1, #arg_lead) == arg_lead then table.insert(results, f) end
-  end
-  return results
+  local choices = require("taskwarrior.choices")
+  return choices.complete(choices.GROUPS, arg_lead)
 end
 
 M.api = {}
@@ -294,6 +285,27 @@ function M.setup(opts)
       end)
     end, vim.tbl_extend("force", gopts, { desc = "taskwarrior.nvim: Register cwd as project" }))
   end
+
+  -- Finite-choice pickers. Each is a small known set, so it gets a picker
+  -- rather than a remembered-syntax prompt.
+  local function map_picker(key, fn, desc)
+    if key and key ~= false and key ~= "" then
+      vim.keymap.set("n", key, fn,
+        vim.tbl_extend("force", gopts, { desc = "taskwarrior.nvim: " .. desc }))
+    end
+  end
+
+  map_picker(config.options.context_key, function()
+    require("taskwarrior.context").pick()
+  end, "Pick Taskwarrior context")
+
+  map_picker(config.options.view_key, function()
+    M.view_load()
+  end, "Pick a saved view")
+
+  map_picker(config.options.report_key, function()
+    M.report()
+  end, "Pick a named report")
 
   -- Easy-feedback global keymap (issue #2 → v1.4.1). Default <leader>tF.
   -- Set feedback_key = false to disable.

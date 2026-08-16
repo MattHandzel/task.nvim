@@ -35,9 +35,16 @@ end
 -- threaded from init.lua (so we don't introduce a circular require).
 function M.open(name, open_fn)
   if not name or name == "" then
-    vim.ui.select(M.names(), { prompt = "Report:" }, function(choice)
-      if choice then M.open(choice, open_fn) end
-    end)
+    local entries = {}
+    for _, n in ipairs(M.names()) do
+      local r = M.reports[n]
+      entries[#entries + 1] = {
+        value = n,
+        label = ("%-12s%s"):format(n, (r and r.filter) or ""),
+      }
+    end
+    require("taskwarrior.pick").select(entries, { prompt = "Report:" },
+      function(choice) M.open(choice, open_fn) end)
     return
   end
   local report = M.reports[name]

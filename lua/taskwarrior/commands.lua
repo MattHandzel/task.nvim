@@ -70,19 +70,24 @@ function M.setup(main, complete_filter)
     main.undo()
   end, { nargs = 0, desc = "Undo last save" })
 
+  -- No argument opens the picker (previously this was an error), so both
+  -- `:TwSort due+` and a bare `:TwSort` are usable.
   register("Sort", function(cmd_opts)
+    if cmd_opts.args == "" then
+      local bufnr = vim.api.nvim_get_current_buf()
+      require("taskwarrior.pick").select(
+        require("taskwarrior.choices").SORTS,
+        { prompt = "Sort by:", current = vim.b[bufnr].task_sort or "urgency-" },
+        function(value) main.sort(value) end)
+      return
+    end
     main.sort(cmd_opts.args)
   end, {
-    nargs = 1,
-    desc = "Change task sort order (e.g. due+, urgency-)",
+    nargs = "?",
+    desc = "Change task sort order (no argument opens a picker)",
     complete = function(arg_lead)
-      local fields = { "urgency-", "urgency+", "due+", "due-", "priority-",
-                       "priority+", "project+", "project-", "description+" }
-      local results = {}
-      for _, f in ipairs(fields) do
-        if f:sub(1, #arg_lead) == arg_lead then table.insert(results, f) end
-      end
-      return results
+      local choices = require("taskwarrior.choices")
+      return choices.complete(choices.SORTS, arg_lead)
     end,
   })
 
@@ -90,14 +95,10 @@ function M.setup(main, complete_filter)
     main.group(cmd_opts.args)
   end, {
     nargs = "?",
-    desc = "Change task grouping (e.g. project, tag, none)",
+    desc = "Change task grouping (project, tag, none; see also <leader>tg)",
     complete = function(arg_lead)
-      local fields = { "project", "priority", "status", "tag", "none" }
-      local results = {}
-      for _, f in ipairs(fields) do
-        if f:sub(1, #arg_lead) == arg_lead then table.insert(results, f) end
-      end
-      return results
+      local choices = require("taskwarrior.choices")
+      return choices.complete(choices.GROUPS, arg_lead)
     end,
   })
 

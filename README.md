@@ -190,9 +190,12 @@ These are bundled but require their own host plugins.
 | `<leader>ta`  | Quick-capture (global, works from any buffer) |
 | `<leader>tt`  | Open task buffer (global)                     |
 | `<leader>tf`  | Change filter (in task buffer)                |
-| `<leader>ts`  | Change sort (in task buffer)                  |
-| `<leader>tg`  | Change group (in task buffer)                 |
+| `<leader>ts`  | Pick sort order (in task buffer)              |
+| `<leader>tg`  | Pick grouping (in task buffer)                |
 | `<leader>tpa` | Register cwd as a project                     |
+| `<leader>tc`  | Pick the Taskwarrior context (global)         |
+| `<leader>tv`  | Pick a saved view (global)                    |
+| `<leader>tr`  | Pick a named report (global)                  |
 
 ## Metadata syntax
 

@@ -9,6 +9,7 @@ local KNOWN_KEYS = {
 	"on_delete", "confirm", "sort", "group", "fields", "wrap",
 	"capture_key", "open_key", "filter_key", "sort_key",
 	"group_key", "project_add_key", "filters", "projects", "icons",
+	"context_key", "view_key", "report_key",
 	"border_style", "capture_width", "capture_height", "capture_confirm_close",
 	"capture_annotations", "capture_annotation_key", "field_colors",
 	"table_columns",
@@ -42,6 +43,8 @@ local TOP_LEVEL_TYPES = {
 	sort_key              = "string",    -- nil OK
 	group_key             = "string",    -- nil OK
 	project_add_key       = "string",    -- nil OK
+	-- context_key / view_key / report_key accept `false` to disable, so they
+	-- are checked separately below rather than as plain strings.
 	filters               = "table",
 	projects              = "table",
 	icons                 = "boolean",
@@ -173,6 +176,19 @@ function M.validate(opts)
 
 	-- 2. Top-level type checks.
 	check_types(opts, TOP_LEVEL_TYPES, nil)
+
+	-- Picker keymaps: a keystring, or false to disable.
+	for _, key in ipairs({ "context_key", "view_key", "report_key" }) do
+		local v = opts[key]
+		if v ~= nil and v ~= false and type(v) ~= "string" then
+			error(
+				("taskwarrior.nvim: setup key '%s' must be a string or false, got %s"):format(
+					key, type(v)
+				),
+				0
+			)
+		end
+	end
 
 	-- feedback_endpoint: boolean false OR a string URL.
 	local fe = opts.feedback_endpoint
