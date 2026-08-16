@@ -154,9 +154,24 @@ describe("e2e Taskwarrior contexts (tw c12b4cbd)", function()
 
   it("define refuses the reserved name 'none'", function()
     local before = context.list()
+    -- The refusal is an intentional ERROR-level notify. Captured rather than
+    -- allowed through: an ERROR notify in headless Neovim writes to stderr
+    -- and makes the process exit non-zero, which would fail the suite for a
+    -- message the test is specifically asserting we DO emit.
+    local messages = {}
+    local orig_notify = vim.notify
+    vim.notify = function(msg, _lvl, _o) messages[#messages + 1] = tostring(msg) end
     context.define("none", "project:whatever")
     vim.wait(300, function() return false end, 10)
+    vim.notify = orig_notify
+
     assert.are.same(#before, #context.list(),
       "defining a context named 'none' should be refused")
+    local refused = false
+    for _, m in ipairs(messages) do
+      if m:find("reserved", 1, true) then refused = true end
+    end
+    assert.is_true(refused,
+      "expected an explanatory refusal; got: " .. vim.inspect(messages))
   end)
 end)

@@ -29,12 +29,12 @@ describe("e2e undo does not revert the render", function()
     require("taskwarrior").setup({})
   end
 
-  taskmd.tw_add("undo probe one", { project = "undodemo" })
-  taskmd.tw_add("undo probe two", { project = "undodemo" })
+  taskmd.tw_add("undo probe one", { project = "undorenderdemo" })
+  taskmd.tw_add("undo probe two", { project = "undorenderdemo" })
 
   local function open()
     vim.cmd("enew")
-    require("taskwarrior").open("project:undodemo")
+    require("taskwarrior").open("project:undorenderdemo")
     vim.wait(300, function() return false end, 10)
     return vim.api.nvim_get_current_buf()
   end
