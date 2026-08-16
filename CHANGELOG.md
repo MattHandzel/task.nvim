@@ -6,6 +6,75 @@ this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] — v1.5.0
 
+### Added
+
+- **`:TwContext [name|none]`** — set or show the Taskwarrior context
+  (work, home, …). Task buffers honor the active context's read filter
+  and refresh when it changes. Taskwarrior 3.x applies contexts to
+  reports but *not* to `export`, which is how the plugin reads
+  everything, so the render path injects the read filter itself; the
+  injected tokens land in the rendered header, keeping the save path on
+  the same effective filter. `uuid:`-targeted filters are never
+  context-narrowed. Completion lists defined contexts plus `none`.
+- **`:TwTable [filter]`** — vit-style column view: one row per task with
+  aligned columns, sorted by urgency (or `custom_urgency`). `<CR>` opens
+  the task under the cursor in an editable `:Tw` buffer, `r` refreshes,
+  `q` closes; the view itself is read-only. Columns come from the new
+  `table_columns` option — a field name or
+  `{ field, label, width, align, format }`. Omitting `width` on one
+  column lets it absorb the leftover window width; over-long cells
+  ellipsize instead of overflowing. Unrecognised field names are read
+  straight off the exported task, so UDA columns need no extra wiring.
+- **Capture annotations** — lines below the first in the quick-capture
+  window become annotations on the created task. `<C-CR>` opens an
+  annotation line; `<CR>` still submits everything. New
+  `capture_annotations` option (default `true`) opts out;
+  `capture_height` sizes the form.
+- **Capture field coloring** — the quick-capture buffer now runs the task
+  buffer's highlighter, so `project:`, `priority:`, `due:`, `+tags` and
+  UDAs are colored as you type.
+- **`field_colors` option** — per-field highlight overrides keyed by
+  field name, mirroring `tag_colors`. Any `field:value` token not
+  otherwise styled now gets the new neutral `TaskField` highlight group,
+  so a UDA never renders as plain description text. Clock times
+  (`09:30`) and URL schemes are excluded from field matching.
+- The quick-capture confirmation now echoes the first ~40 characters of
+  the stored description (plus an annotation count), so you can tell at a
+  glance that the right task went through and its fields parsed.
+
+### Fixed
+
+- **Hyphenated tag names** (`+ais-research-taste` and friends).
+  Taskwarrior 3's expression parser reads the hyphen in a bare `+tag`
+  token as a subtraction operator, which broke three separate paths:
+  filters failed with `Cannot subtract from a Boolean value` and rendered
+  a silently empty buffer; `task add … +foo-bar` put the tag in the
+  *description* text; and `modify +foo-bar` exited non-zero without
+  applying. Fixes:
+  - `shell_export` now routes parsed filter args through the same
+    `+t` → `tags.has:t` / `-t` → `tags.hasnt:t` rewrite `tw_export`
+    already used (virtual tags such as `+ACTIVE` pass through verbatim).
+  - Task creation and buffer saves emit a single `tags:a,b` replacement
+    instead of per-tag `+a` / `-b` deltas.
+  - New `taskmd.tw_change_tag(uuid, tag, remove)` merges a single-tag
+    delta into the full set and replaces; used by the `gm` tag picker and
+    `:TwInbox`.
+- **Partial tag removal on save** — removing one tag from a task line in
+  the markdown buffer and saving now actually applies the removal. The
+  old per-tag `+t` delta args never did.
+- `<Esc>` in the quick-capture window only checked line 1 for unsubmitted
+  text, so annotation lines could be discarded without a prompt; the
+  cursor restore after "don't discard" also always jumped back to line 1.
+- `task context none` exits non-zero when no context is set; clearing an
+  already-clear context is now treated as the no-op it is instead of
+  surfacing an error.
+
+### Changed
+
+- With `confirm = false`, the apply summary notification now points at
+  `:TwUndo` — without the popup that notification is the only checkpoint,
+  so the revert path is named where you'll see it.
+
 ### Removed — Python backend
 
 - `bin/taskmd` (the optional Python CLI) — removed. Taskwarrior.nvim has
