@@ -112,8 +112,11 @@ function M.run(hours)
         action = function(cb)
           vim.ui.input({ prompt = "Tag (no +): " }, function(v)
             if v and v ~= "" then
-              local result = command.mutate({ short, "modify", "+" .. v })
-              return cb(result.ok, result.output)
+              -- `modify +v` breaks on hyphenated tags (TW3 parses the hyphen
+              -- as subtraction) — use the merge-and-replace helper instead.
+              local ok, out = require("taskwarrior.taskmd").tw_change_tag(
+                short, (v:gsub("^%+", "")))
+              return cb(ok, out)
             end
             cb(nil, "")
           end)
