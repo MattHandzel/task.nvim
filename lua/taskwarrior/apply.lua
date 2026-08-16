@@ -338,6 +338,14 @@ function M.do_apply_and_refresh(bufnr, tmpfile, on_delete, refresh_fn, opts)
     if first and first ~= "" then msg = msg .. "\n" .. first end
     vim.notify(msg, vim.log.levels.ERROR)
   elseif (summary.action_count or 0) > 0 then
+    -- Without the confirm popup the save applies silently, so the summary
+    -- notification is the user's only checkpoint — make the undo path
+    -- discoverable right there (tw fca82462).
+    local config = require("taskwarrior.config")
+    if not config.options.confirm then
+      local prefix = config.options.command_prefix or "Tw"
+      msg = msg .. (" — :%sUndo to revert"):format(prefix)
+    end
     vim.notify(msg)
   end
 

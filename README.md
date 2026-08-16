@@ -211,7 +211,10 @@ Tasks use Taskwarrior-native syntax after the description:
 ```lua
 require("taskwarrior").setup({
   on_delete = "done",          -- "done" or "delete" when lines are removed
-  confirm = true,              -- show confirmation dialog before applying
+  confirm = true,              -- show confirmation dialog before applying.
+                               -- false = apply immediately on :w; the summary
+                               -- notification then points at :TwUndo, which
+                               -- reverts everything the save just did
   sort = "urgency-",           -- default sort (field+ for asc, field- for desc)
   group = nil,                 -- default group field (nil to disable)
   wrap = true,                 -- line-wrap task buffers (false = one line per task)
