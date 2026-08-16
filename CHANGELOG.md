@@ -4,7 +4,7 @@ All notable changes to taskwarrior.nvim (formerly `task.nvim`) are documented
 here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project follows [Semantic Versioning](https://semver.org/).
 
-## v1.5.0 — 2026-08-16
+## v1.6.0 — 2026-08-16
 
 ### Added
 
@@ -125,6 +125,8 @@ this project follows [Semantic Versioning](https://semver.org/).
 - With `confirm = false`, the apply summary notification now points at
   `:TwUndo` — without the popup that notification is the only checkpoint,
   so the revert path is named where you'll see it.
+
+## v1.5.0 — 2026-05-04
 
 ### Removed — Python backend
 
