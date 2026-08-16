@@ -648,7 +648,7 @@ local function is_overdue(date_str)
 end
 
 -- Apply highlights to a single line
-local function highlight_line(bufnr, line_nr, line)
+local function highlight_line(bufnr, line_nr, line, has_tasks)
   -- Header comment line — concealed entirely. Users don't need to see the
   -- <!-- taskmd filter: ... | sort: ... | rendered_at: ... --> metadata, only
   -- the tasks themselves. Filter/sort/group are shown via statusline if the
@@ -658,7 +658,13 @@ local function highlight_line(bufnr, line_nr, line)
     -- `conceal_lines` (Neovim 0.11+) removes the row entirely instead of
     -- leaving a blank one, so the first task sits on the top line. Older
     -- Neovim keeps the previous behaviour: an empty concealed row.
-    if HAS_CONCEAL_LINES then opts.conceal_lines = "" end
+    --
+    -- EXCEPT when there are no tasks: the empty-state hint ("No tasks match
+    -- filter …") is virt_lines anchored to this header, and removing the
+    -- host row removes the hint with it — leaving a completely blank
+    -- buffer, which is the exact symptom issue #5 was about. With no tasks
+    -- there is nothing to pull up to the top anyway, so keep the row.
+    if HAS_CONCEAL_LINES and has_tasks then opts.conceal_lines = "" end
     vim.api.nvim_buf_set_extmark(bufnr, hl_ns, line_nr, 0, opts)
     return
   end
@@ -800,8 +806,14 @@ end
 local function update_highlights(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, hl_ns, 0, -1)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  -- Whether the buffer holds any task at all decides if the header row can
+  -- be removed outright — see the header branch in highlight_line.
+  local has_tasks = false
+  for _, line in ipairs(lines) do
+    if uuid_from_line(line) or line:match("^%- %[") then has_tasks = true; break end
+  end
   for i, line in ipairs(lines) do
-    highlight_line(bufnr, i - 1, line)
+    highlight_line(bufnr, i - 1, line, has_tasks)
   end
 end
 

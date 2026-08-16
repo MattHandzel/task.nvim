@@ -68,6 +68,47 @@ describe("e2e task buffer layout", function()
       "occupies space (winline = " .. vim.fn.winline() .. ")")
   end)
 
+  -- Hiding the header row outright also hides anything anchored to it:
+  -- `conceal_lines` suppresses that line's `virt_lines` (verified directly
+  -- against Neovim 0.11.6 — a concealed-away line draws no virtual lines).
+  -- The empty-state hint IS virt_lines on the header, so concealing the row
+  -- in an empty buffer leaves nothing on screen at all: a blank window with
+  -- no explanation, which is precisely the issue #5 symptom the hint exists
+  -- to prevent. With no tasks there is nothing to pull to the top anyway,
+  -- so the row must stay.
+  it("keeps the header row when there are no tasks, so the hint can render", function()
+    vim.cmd("enew")
+    require("taskwarrior").open("project:definitely-no-such-project-here")
+    vim.wait(300, function() return false end, 10)
+    local bufnr = vim.api.nvim_get_current_buf()
+
+    local hint = vim.api.nvim_buf_get_extmarks(bufnr,
+      vim.api.nvim_create_namespace("taskwarrior_empty_state"), 0, -1,
+      { details = true })
+    assert.are.same(1, #hint, "empty-state hint extmark is missing")
+    assert.is_truthy(hint[1][4].virt_lines, "hint carries no virt_lines")
+
+    local header = vim.api.nvim_buf_get_extmarks(bufnr,
+      vim.api.nvim_create_namespace("taskwarrior_hl"), { 0, 0 }, { 0, -1 },
+      { details = true })
+    assert.is_true(#header > 0, "header extmark is missing")
+    assert.is_nil(header[1][4].conceal_lines,
+      "header row was concealed away in an empty buffer — that hides the " ..
+      "empty-state hint with it, leaving a blank window")
+  end)
+
+  it("still hides the header row when tasks ARE present", function()
+    if not has_conceal_lines then return end
+    vim.cmd("enew")
+    require("taskwarrior").open("project:layoutdemo")
+    vim.wait(300, function() return false end, 10)
+    local header = vim.api.nvim_buf_get_extmarks(vim.api.nvim_get_current_buf(),
+      vim.api.nvim_create_namespace("taskwarrior_hl"), { 0, 0 }, { 0, -1 },
+      { details = true })
+    assert.are.same("", header[1][4].conceal_lines,
+      "header row should be removed entirely when there are tasks to show")
+  end)
+
   it("cursor_to_first_task tolerates a buffer with no tasks", function()
     vim.cmd("enew")
     require("taskwarrior").open("project:definitely-no-such-project-here")
